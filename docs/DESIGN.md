@@ -4,7 +4,7 @@
 
 The Slug algorithm (Eric Lengyel, 2017) is one of the best approaches to GPU text rendering ever published. It evaluates quadratic Bezier curves per-pixel in the fragment shader, producing mathematically perfect text at any size, rotation, or zoom level. No texture atlases, no SDF artifacts, no mipmaps.
 
-The algorithm's US patent (10,373,352) expired in 2024, making it freely usable. This library implements Slug in Odin as a reusable package that any project can drop in.
+The algorithm's US patent (10,936,792) was dedicated to the public domain by Eric Lengyel via a Terminal Disclaimer on March 17, 2026, making it freely usable. This library implements Slug in Odin as a reusable package that any project can drop in.
 
 ## Architecture: Why Core + Backends
 

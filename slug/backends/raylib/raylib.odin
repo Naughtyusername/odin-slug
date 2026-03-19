@@ -25,8 +25,6 @@ package slug_raylib
 //        slug_raylib.flush(renderer, rl.GetScreenWidth(), rl.GetScreenHeight())
 // ===================================================
 
-import "core:fmt"
-
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 import rlgl "vendor:raylib/rlgl"
@@ -75,35 +73,7 @@ upload_font_textures :: proc(r: ^Renderer, slot: int, pack: ^slug.Texture_Pack_R
 // Call this between slug.end() and any post-slug Raylib drawing.
 flush :: proc(r: ^Renderer, width, height: i32) {
 	rlgl.DrawRenderBatchActive()
-
-	// DEBUG: Check GL state before slug draw
-	fbo: i32
-	gl.GetIntegerv(gl.DRAW_FRAMEBUFFER_BINDING, &fbo)
-	vp: [4]i32
-	gl.GetIntegerv(gl.VIEWPORT, &vp[0])
-	fmt.println(
-		"[slug_rl.flush] FBO:",
-		fbo,
-		"viewport:",
-		vp,
-		"size:",
-		width,
-		height,
-		"quads:",
-		r.gl_renderer.ctx.quad_count,
-		"font_gl[0].loaded:",
-		r.gl_renderer.font_gl[0].loaded,
-		"font_quad_count[0]:",
-		r.gl_renderer.ctx.font_quad_count[0],
-	)
-
 	slug_gl.flush(&r.gl_renderer, width, height)
-
-	// DEBUG: Check for GL errors after draw
-	err := gl.GetError()
-	if err != gl.NO_ERROR {
-		fmt.println("[slug_rl.flush] GL ERROR after draw:", err)
-	}
 }
 
 // Destroy all GL resources and free the slug context.

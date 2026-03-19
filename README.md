@@ -335,20 +335,20 @@ odin build examples/demo_vulkan/ -out:demo_vulkan -collection:libs=.
 
 ### Platform Notes
 
-**Linux**: Install Odin per [odin-lang.org/docs/install](https://odin-lang.org/docs/install/). Build the stb vendor lib if not already done:
+**Linux** (tested): Install Odin per [odin-lang.org/docs/install](https://odin-lang.org/docs/install/). Build the stb vendor lib if not already done:
 ```sh
 make -C $(odin root)/vendor/stb/src unix
 ```
 GLFW and Raylib vendor libraries ship with Odin. For the Vulkan demo: `sudo pacman -S vulkan-devel shaderc sdl3` (Arch) or `sudo apt install libvulkan-dev glslc libsdl3-dev` (Debian/Ubuntu).
 
-**Windows**: Install Odin. From a Developer Command Prompt, build the stb vendor lib:
+**Windows** (untested): Install Odin. From a Developer Command Prompt, build the stb vendor lib:
 ```cmd
 cd %ODIN_ROOT%\vendor\stb\src
 nmake -f Windows.mak
 ```
-Vendor libraries (OpenGL, GLFW, Raylib) are included. Vulkan SDK from [lunarg.com](https://vulkan.lunarg.com/) if using the Vulkan backend.
+Vendor libraries (OpenGL, GLFW, Raylib) are included. Vulkan SDK from [lunarg.com](https://vulkan.lunarg.com/) if using the Vulkan backend. Build scripts (`build.bat`, `build.ps1`) are provided but have not been tested — please report issues.
 
-**macOS**: Install Odin. Build the stb vendor lib: `make -C $(odin root)/vendor/stb/src unix`. OpenGL backend works (macOS supports OpenGL 4.1). Vulkan requires MoltenVK.
+**macOS** (untested): Install Odin. Build the stb vendor lib: `make -C $(odin root)/vendor/stb/src unix`. OpenGL backend works (macOS supports OpenGL 4.1). Vulkan requires MoltenVK. Not yet tested — please report issues.
 
 ### Troubleshooting
 

@@ -276,7 +276,7 @@ void main()
     }
 
     float coverage = CalcCoverage(xcov, ycov, xwgt, ywgt);
-    fragColor = vec4(1.0, 0.0, 0.0, 1.0); // DEBUG: solid red to test geometry
+    fragColor = vColor * coverage;
 }
 `
 
@@ -448,7 +448,13 @@ flush :: proc(r: ^Renderer, width, height: i32) {
 	// Maps (0,0) to top-left and (w,h) to bottom-right in screen coords.
 	proj := linalg.matrix_ortho3d_f32(0, w, h, 0, -1, 1)
 
-	// Save GL state we modify
+	// Set all GL state explicitly — don't assume the host left defaults.
+	// Bind default framebuffer in case the host left an FBO bound.
+	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+	// Sync viewport to our projection matrix dimensions.
+	gl.Viewport(0, 0, width, height)
+	// Prevent backface culling from discarding our screen-aligned quads.
+	gl.Disable(gl.CULL_FACE)
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 	gl.Disable(gl.DEPTH_TEST)
