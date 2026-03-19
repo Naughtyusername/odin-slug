@@ -126,8 +126,6 @@ emit_glyph_quad :: proc(ctx: ^Context, g: ^Glyph_Data, x, y, w, h: f32, color: [
 	jac_00 := em_w / w if w > 0 else 0
 	jac_11 := -(em_h / h) if h > 0 else 0
 
-	DILATION_SCALE :: f32(1.0)
-
 	corners := [4][2]f32{
 		{x, y},         // TL
 		{x + w, y},     // TR
@@ -202,8 +200,6 @@ emit_glyph_quad_transformed :: proc(
 		 xform[1, 1] * inv_det, -xform[0, 1] * inv_det,
 		 xform[1, 0] * inv_det, -xform[0, 0] * inv_det,
 	}
-
-	DILATION_SCALE :: f32(1.0)
 
 	for vi in 0 ..< 4 {
 		off := em_offsets[vi]

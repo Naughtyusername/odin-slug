@@ -1,24 +1,24 @@
 # odin-slug
 
-GPU Bezier text rendering for Odin. An implementation of Eric Lengyel's [Slug algorithm](https://jcgt.org/published/0006/02/02/) — resolution-independent text and vector icons rendered by evaluating quadratic Bezier curves per-pixel in the fragment shader.
+GPU Bezier text rendering for Odin. An implementation of Eric Lengyel's [Slug algorithm](https://jcgt.org/published/0006/02/02/) -- resolution-independent text and vector icons rendered by evaluating quadratic Bezier curves per-pixel in the fragment shader.
 
-Text is crisp at any size, rotation, or zoom level. No texture atlases, no SDF artifacts, no mipmaps.
+Crisp at any size, rotation, or zoom. No texture atlases, no SDF artifacts, no mipmaps.
 
 ## Why Slug?
 
-Traditional text rendering rasterizes glyphs into bitmaps at specific sizes. Scale up and you get blur. SDF (Signed Distance Field) fonts improve on this but introduce artifacts at sharp corners and small sizes.
+Traditional text rendering rasterizes glyphs into bitmaps at fixed sizes. Scale up and you get blur. SDF fonts improve on this but break down at sharp corners and small sizes.
 
-Slug takes a fundamentally different approach: the GPU evaluates the actual Bezier curves of each glyph per-pixel, computing exact coverage via winding numbers. The result is mathematically perfect text at any resolution, rotation, or zoom level — because there's no rasterization step at all.
+Slug skips rasterization entirely. The GPU evaluates the actual Bezier curves of each glyph per-pixel, computing exact coverage via winding numbers. Text stays sharp at any resolution, rotation, or zoom because there's nothing pre-rasterized to degrade.
 
 ## Features
 
-- **Resolution-independent text** — crisp at any size, rotation, or zoom
-- **SVG vector icon rendering** — parse SVG paths into the same pipeline as text
-- **Text effects** — rainbow, wobble, shake, rotation, circular, wave, shadow, typewriter
-- **Kerning support** — automatic kern pair adjustment
-- **Multi-font** — up to 4 fonts loaded simultaneously with batched draw calls
-- **GPU-agnostic core** — backends for OpenGL 3.3 (Raylib-compatible) and Vulkan
-- **Zero external dependencies** — only `vendor:stb/truetype` (ships with Odin)
+- **Resolution-independent text** -- crisp at any size, rotation, or zoom
+- **SVG vector icons** -- parse SVG paths into the same GPU pipeline as text
+- **Text effects** -- rainbow, wobble, shake, rotation, circular, wave, shadow, typewriter
+- **Kerning** -- automatic kern pair adjustment
+- **Multi-font** -- up to 4 fonts loaded simultaneously, batched draw calls
+- **GPU-agnostic core** -- backends for OpenGL 3.3, Raylib, and Vulkan
+- **No external dependencies** -- only `vendor:stb/truetype` (ships with Odin)
 
 ## Quick Start
 
@@ -54,7 +54,7 @@ odin build src/ -collection:libs=./libs
 import "libs:slug"
 import slug_gl "libs:slug/backends/opengl"
 
-// Initialize (heap-allocate — slug.Context is ~1.5MB)
+// Initialize (heap-allocate -- slug.Context is ~1.5MB)
 renderer := new(slug_gl.Renderer)
 slug_gl.init(renderer)
 slug_gl.load_font(renderer, 0, "myfont.ttf")
@@ -70,24 +70,18 @@ slug_gl.flush(renderer, screen_width, screen_height)
 
 ### Raylib Integration
 
+The Raylib backend wraps the OpenGL backend and handles GL function pointer loading and batch flushing automatically.
+
 ```odin
-import gl "vendor:OpenGL"
-import "vendor:glfw"
 import rl "vendor:raylib"
-import rlgl "vendor:raylib/rlgl"
 import "libs:slug"
-import slug_gl "libs:slug/backends/opengl"
+import slug_rl "libs:slug/backends/raylib"
 
 // After rl.InitWindow():
-// CRITICAL: Load Odin's vendor:OpenGL function pointers.
-// Raylib uses its own internal GLAD loader, but slug's OpenGL backend
-// uses vendor:OpenGL which has separate function pointers.
-gl.load_up_to(3, 3, glfw.gl_set_proc_address)
-
-// Heap-allocate the renderer (slug.Context is ~1.5MB — too large for the stack)
-renderer := new(slug_gl.Renderer)
-slug_gl.init(renderer)
-slug_gl.load_font(renderer, 0, "myfont.ttf")
+renderer := new(slug_rl.Renderer)
+slug_rl.init(renderer)
+slug_rl.load_font(renderer, 0, "myfont.ttf")
+ctx := slug_rl.ctx(renderer)
 
 // In your render loop:
 rl.BeginDrawing()
@@ -96,14 +90,11 @@ rl.ClearBackground(rl.DARKGRAY)
 // Normal Raylib drawing
 rl.DrawRectangle(10, 10, 200, 100, rl.BLUE)
 
-// CRITICAL: flush Raylib's batch before slug touches GL state
-rlgl.DrawRenderBatchActive()
-
-// Slug text
-slug.begin(&renderer.ctx)
-slug.draw_text(&renderer.ctx, "Crisp GPU text!", 100, 100, 32, {1,1,1,1})
-slug.end(&renderer.ctx)
-slug_gl.flush(renderer, rl.GetScreenWidth(), rl.GetScreenHeight())
+// Slug text -- flush() handles Raylib batch flushing internally
+slug.begin(ctx)
+slug.draw_text(ctx, "Crisp GPU text!", 100, 100, 32, {1,1,1,1})
+slug.end(ctx)
+slug_rl.flush(renderer, rl.GetScreenWidth(), rl.GetScreenHeight())
 
 rl.EndDrawing()
 ```
@@ -122,9 +113,11 @@ slug/                          Core library (package slug)
 │   ├── slug_330.vert/.frag    OpenGL 3.3
 │   └── slug_450.vert/.frag    Vulkan
 └── backends/
-    ├── opengl/                OpenGL 3.3 backend (~530 lines)
+    ├── opengl/                OpenGL 3.3 backend (~580 lines)
     │   └── opengl.odin        Shader, VAO/VBO, texture upload, draw
-    └── vulkan/                Vulkan backend (~1200 lines)
+    ├── raylib/                Raylib backend (thin wrapper over OpenGL)
+    │   └── raylib.odin        GL loader + batch flush automation
+    └── vulkan/                Vulkan backend (~1700 lines)
         ├── renderer.odin      Pipeline, swapchain, command buffers
         └── helpers.odin       Buffer/texture/shader utilities
 
@@ -148,14 +141,14 @@ docs/
 | `end(ctx)` | Finalize per-font quad ranges |
 | `draw_text(ctx, text, x, y, size, color)` | Draw a string at baseline position |
 | `draw_icon(ctx, slot, x, y, size, color)` | Draw an SVG icon centered at position |
-| `measure_text(font, text, size)` | Get pixel width and height |
+| `measure_text(font, text, size)` | Returns pixel width and height |
 | `use_font(ctx, slot)` | Switch active font slot |
-| `active_font(ctx)` | Get pointer to current font |
+| `active_font(ctx)` | Pointer to current font |
 | `vertex_count(ctx)` | Vertices written this frame |
 | `font_load(path)` | Load a TTF file |
 | `font_load_ascii(font)` | Load glyphs 32-126 |
 | `font_load_glyph(font, codepoint)` | Load a single glyph |
-| `font_get_kerning(font, left, right)` | Get kerning adjustment |
+| `font_get_kerning(font, left, right)` | Kerning adjustment between two glyphs |
 | `process_font(font)` | Process glyphs + pack textures |
 | `svg_load_into_font(font, slot, path)` | Load SVG icon into glyph slot |
 | `destroy(ctx)` | Free all fonts and glyph data |
@@ -183,20 +176,45 @@ docs/
 | `flush(renderer, width, height)` | Upload vertices, draw all font batches |
 | `destroy(renderer)` | Delete GL objects, free slug context |
 
+### Raylib Backend (package slug_raylib)
+
+Wraps the OpenGL backend. Handles GL function pointer loading and Raylib batch flushing.
+
+| Proc | Purpose |
+|------|---------|
+| `init(renderer)` | Load GL function pointers + compile shaders (call after `rl.InitWindow`) |
+| `ctx(renderer)` | Get pointer to slug context for draw calls |
+| `load_font(renderer, slot, path)` | Load font + upload textures (all-in-one) |
+| `upload_font_textures(renderer, slot, pack)` | Upload pre-packed textures (advanced) |
+| `flush(renderer, width, height)` | Flush Raylib batch + upload vertices + draw |
+| `destroy(renderer)` | Delete GL objects, free slug context |
+
+### Vulkan Backend (package slug_vulkan)
+
+| Proc | Purpose |
+|------|---------|
+| `init(renderer, window)` | Create Vulkan instance, device, pipeline, buffers |
+| `load_font(renderer, slot, path, name)` | Load font + upload textures + create descriptor set |
+| `begin_frame(renderer)` | Wait for GPU, reset quad counter |
+| `end_frame(renderer)` | Finalize per-font quad ranges |
+| `use_font(renderer, slot)` | Switch active font slot |
+| `draw_frame(renderer)` | Copy vertices to GPU, record commands, submit, present |
+| `destroy(renderer)` | Destroy all Vulkan resources and slug context |
+
 ## Architecture
 
-### Design Philosophy
+### Core / Backend Split
 
-The library is split into a **GPU-agnostic core** and **thin backends**:
+The library separates the **GPU-agnostic core** from **thin backends**:
 
-- **Core** (`slug/`): Handles everything that doesn't touch a graphics API — font loading, Bezier curve extraction, band acceleration, texture data packing, vertex buffer packing, text measurement. Outputs raw vertex data and texture data that any backend can consume.
+- **Core** (`slug/`): Everything that doesn't touch a graphics API -- font loading, Bezier curve extraction, band acceleration, texture data packing, vertex buffer packing, text measurement. Produces raw vertex and texture data for backends to consume.
 
-- **Backends** (`slug/backends/*/`): Take the core's output and render it. The OpenGL backend is ~530 lines. A backend's job is narrow: compile the shader, upload textures, upload vertices, draw.
+- **Backends** (`slug/backends/*/`): Take the core's output and render it. The OpenGL backend is ~580 lines. The Raylib backend wraps OpenGL with automatic GL loader and batch flush handling. A backend just compiles the shader, uploads textures, uploads vertices, and draws.
 
-This split means:
-- Adding a new backend (Metal, DirectX, WebGPU) only requires ~300-500 lines
-- The core can be tested and used without any graphics API
-- Users who want custom rendering pipelines can read `ctx.vertices` directly
+This means:
+- New backends (Metal, DirectX, WebGPU) need ~300-500 lines
+- The core works without any graphics API linked
+- Custom rendering pipelines can read `ctx.vertices` directly
 
 ### Vertex Format
 
@@ -206,8 +224,8 @@ Each glyph is a screen-space quad (4 vertices, 80 bytes each):
 |-----------|--------|----------|
 | `pos` | vec4 | Screen position + dilation normal |
 | `tex` | vec4 | Em-space texcoord + packed glyph location |
-| `jac` | vec4 | 2x2 inverse Jacobian (screen → em-space) |
-| `bnd` | vec4 | Band transform (em coord → band index) |
+| `jac` | vec4 | 2x2 inverse Jacobian (screen -> em-space) |
+| `bnd` | vec4 | Band transform (em coord -> band index) |
 | `col` | vec4 | Vertex color RGBA |
 
 ### GPU Textures
@@ -221,7 +239,7 @@ Two textures per font, sampled with `texelFetch` (integer coordinates):
 
 ### Font Slot Constraint
 
-When using multiple fonts, draw all content for each font contiguously. You cannot switch back to a font that already has quads — the per-font quad ranges are recorded sequentially.
+Draw all content for each font contiguously. You can't switch back to a font that already has quads -- the per-font quad ranges are recorded sequentially.
 
 ```odin
 // Correct: all font 0, then font 1
@@ -247,20 +265,18 @@ slug.svg_load_into_font(&font, 129, "icons/sword.svg")
 slug.draw_icon(ctx, 128, x, y, 48.0, {1, 1, 1, 1})
 ```
 
-Supports SVG path commands: M, L, H, V, C, S, Q, T, Z (and lowercase relative variants). Cubic Beziers are automatically subdivided into quadratic approximations.
+Supports SVG path commands: M, L, H, V, C, S, Q, T, Z (and lowercase relative variants). Cubic Beziers are subdivided into quadratic approximations.
 
 ## Building
 
 ### Prerequisites
 
 - [Odin compiler](https://odin-lang.org/) (includes `vendor:stb/truetype` and `vendor:OpenGL`)
-- OpenGL 3.3+ capable GPU (for OpenGL backend/demos)
-- Vulkan SDK (for Vulkan backend — optional)
+- OpenGL 3.3+ capable GPU (for the OpenGL backend/demos)
+- Vulkan SDK (optional, for the Vulkan backend)
 - A TTF font file
 
 ### Build Scripts
-
-Cross-platform build scripts are provided:
 
 ```sh
 # Linux / macOS
@@ -268,7 +284,7 @@ Cross-platform build scripts are provided:
 ./build.sh opengl    # Build OpenGL/GLFW demo
 ./build.sh raylib    # Build Raylib demo
 ./build.sh vulkan    # Compile shaders + build Vulkan/SDL3 demo
-./build.sh shaders   # Compile GLSL 4.50 → SPIR-V only (requires glslc)
+./build.sh shaders   # Compile GLSL 4.50 -> SPIR-V only (requires glslc)
 ./build.sh all       # Build all examples
 ./build.sh clean     # Remove build artifacts
 ```
@@ -297,12 +313,24 @@ build.bat clean
 # Check that packages compile
 odin check slug/ -no-entry-point                     # core
 odin check slug/backends/opengl/ -no-entry-point     # OpenGL backend
+odin check slug/backends/raylib/ -no-entry-point     # Raylib backend
 odin check slug/backends/vulkan/ -no-entry-point     # Vulkan backend
 
 # Build examples
 odin build examples/demo_opengl/ -out:demo_opengl -collection:libs=.
 odin build examples/demo_raylib/ -out:demo_raylib -collection:libs=.
+
+# Vulkan demo (requires glslc for shader compilation)
+glslc slug/shaders/slug_450.vert -o slug/shaders/slug_vert.spv
+glslc slug/shaders/slug_450.frag -o slug/shaders/slug_frag.spv
+odin build examples/demo_vulkan/ -out:demo_vulkan -collection:libs=.
 ```
+
+### Demo Controls
+
+| Input | Action |
+|-------|--------|
+| ESC | Quit (all demos) |
 
 ### Platform Notes
 
@@ -317,25 +345,25 @@ GLFW and Raylib vendor libraries ship with Odin. For the Vulkan demo: `sudo pacm
 cd %ODIN_ROOT%\vendor\stb\src
 nmake -f Windows.mak
 ```
-The vendor libraries (OpenGL, GLFW, Raylib) are included. Vulkan SDK from [lunarg.com](https://vulkan.lunarg.com/) if using the Vulkan backend.
+Vendor libraries (OpenGL, GLFW, Raylib) are included. Vulkan SDK from [lunarg.com](https://vulkan.lunarg.com/) if using the Vulkan backend.
 
 **macOS**: Install Odin. Build the stb vendor lib: `make -C $(odin root)/vendor/stb/src unix`. OpenGL backend works (macOS supports OpenGL 4.1). Vulkan requires MoltenVK.
 
 ### Troubleshooting
 
 **Linker errors mentioning `stb_truetype` symbols**
-- Build the stb vendor library first — see platform notes above. This is the most common first-build issue.
+- Build the stb vendor library first -- see platform notes above. Most common first-build issue.
 
 **Font not found / no text visible**
-- Demos load fonts from `examples/assets/fonts/` using relative paths. Run from the project root.
+- Demos load fonts from `examples/assets/fonts/` with relative paths. Run from the project root.
 
 **OpenGL errors on startup**
-- Ensure your GPU supports OpenGL 3.3+. On Linux, check with `glxinfo | grep "OpenGL version"`.
+- Make sure your GPU supports OpenGL 3.3+. On Linux: `glxinfo | grep "OpenGL version"`.
 
 ## Dependencies
 
-| Dependency | Source | Required By |
-|------------|--------|-------------|
+| Dependency | Source | Used By |
+|------------|--------|---------|
 | `vendor:stb/truetype` | Ships with Odin | Core (TTF parsing) |
 | `vendor:OpenGL` | Ships with Odin | OpenGL backend |
 | `vendor:vulkan` | Ships with Odin | Vulkan backend |
@@ -349,15 +377,38 @@ MIT. See [LICENSE](LICENSE).
 
 ### Patent Status
 
-The Slug algorithm was patented by Eric Lengyel (US Patent 10,936,792). On March 17, 2026, Lengyel dedicated the patent to the public domain via a Terminal Disclaimer, making the algorithm freely available. This implementation is fully legal to use in any project.
+The Slug algorithm was patented by Eric Lengyel (US Patent 10,936,792). On March 17, 2026, Lengyel dedicated the patent to the public domain via a Terminal Disclaimer. This implementation is free to use in any project.
 
 ## AI Disclosure
 
-This library was built collaboratively with **Claude Code** (Anthropic's Claude Opus). The human provided direction, architectural decisions, and testing; Claude wrote the implementation code. The core algorithm was ported from Eric Lengyel's publicly available shader code.
+Built with **Claude Code** (Anthropic's Claude Opus). I provided direction, architecture, and testing; Claude wrote the implementation. The core algorithm was ported from Eric Lengyel's publicly available shader code.
+
+## Roadmap
+
+### Near-term
+
+- [ ] **Text wrapping** -- line breaking via `measure_text()` for UI panels and dialogue
+- [ ] **Outlined text** -- dilated quads for outline/stroke (similar to existing drop shadow)
+- [ ] **UI scaling API** -- uniform scale factor for all text (accessibility, HiDPI)
+- [ ] **Static text caching** -- skip re-emitting vertices for unchanged text between frames
+
+### Medium-term
+
+- [ ] **Unicode beyond ASCII** -- on-demand glyph loading for codepoints > 255 (currently `MAX_CACHED_GLYPHS = 256`)
+- [ ] **Subpixel positioning** -- fractional pixel offsets for tighter character spacing
+- [ ] **Shared font atlases** -- pack multiple fonts into shared curve/band textures to cut texture binds
+- [ ] **WebGPU backend** -- for browser-based Odin projects via wasm
+
+### Long-term
+
+- [ ] **Text shaping** -- HarfBuzz integration for complex scripts (Arabic, Devanagari, CJK vertical)
+- [ ] **GPU compute preprocessing** -- band generation and curve sorting in compute shaders
+- [ ] **Instanced rendering** -- one draw call per glyph type instead of per-instance quads
+- [ ] **Subpixel rendering** -- per-RGB-subpixel coverage for LCD antialiasing
 
 ## Credits
 
-- **Algorithm**: Eric Lengyel — [Slug: Resolution-Independent GPU Text](https://jcgt.org/published/0006/02/02/)
+- **Algorithm**: Eric Lengyel -- [Slug: Resolution-Independent GPU Text](https://jcgt.org/published/0006/02/02/)
 - **Reference implementation**: SlugVibes demo (Vulkan + Odin proof-of-concept)
 - **SVG icons**: [game-icons.net](https://game-icons.net/) (CC BY 3.0)
 - **Fonts**: Liberation font family (SIL Open Font License)

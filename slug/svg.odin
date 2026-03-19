@@ -366,7 +366,7 @@ svg_emit_cubic :: proc(
 	cp1 := svg_to_em(p, c1x, c1y)
 	cp2 := svg_to_em(p, c2x, c2y)
 	cp3 := svg_to_em(p, x1, y1)
-	cubic_to_quadratics(cp0, cp1, cp2, cp3, &glyph.curves, 0.001)
+	cubic_to_quadratics(cp0, cp1, cp2, cp3, &glyph.curves, CUBIC_TO_QUAD_TOLERANCE)
 }
 
 svg_compute_bbox :: proc(glyph: ^Glyph_Data) {

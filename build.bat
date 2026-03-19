@@ -41,6 +41,11 @@ odin check slug\backends\opengl\ -no-entry-point
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 echo OpenGL backend: OK
 
+echo === Checking Raylib backend ===
+odin check slug\backends\raylib\ -no-entry-point
+if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+echo Raylib backend: OK
+
 echo === Checking Vulkan backend ===
 odin check slug\backends\vulkan\ -no-entry-point
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%

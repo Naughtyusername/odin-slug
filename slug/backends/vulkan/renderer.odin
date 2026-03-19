@@ -154,7 +154,7 @@ init :: proc(r: ^Renderer, window: ^sdl.Window) -> bool {
 	return true
 }
 
-shutdown :: proc(r: ^Renderer) {
+destroy :: proc(r: ^Renderer) {
 	if r.device != nil {
 		vk.DeviceWaitIdle(r.device)
 	}

@@ -73,6 +73,7 @@ draw_text_wobble :: proc(
 	amplitude: f32 = 8.0,
 	frequency: f32 = 3.0,
 	phase_step: f32 = 0.5,
+	color: [4]f32 = {1.0, 1.0, 1.0, 1.0},
 ) {
 	font := active_font(ctx)
 	pen_x := x
@@ -90,10 +91,6 @@ draw_text_wobble :: proc(
 		glyph_y := (y + y_offset) - g.bbox_max.y * font_size
 		glyph_w := (g.bbox_max.x - g.bbox_min.x) * font_size
 		glyph_h := (g.bbox_max.y - g.bbox_min.y) * font_size
-
-		hue := math.mod(time * 120.0 + f32(char_idx) * 25.0, 360.0)
-		rgb := hsv_to_rgb(hue, 0.8, 1.0)
-		color := [4]f32{rgb.x, rgb.y, rgb.z, 1.0}
 
 		if len(g.curves) > 0 && ctx.quad_count < MAX_GLYPH_QUADS {
 			emit_glyph_quad(ctx, g, glyph_x, glyph_y, glyph_w, glyph_h, color)
@@ -213,7 +210,7 @@ draw_text_on_circle :: proc(
 		if !g.valid do continue
 
 		advance_arc := g.advance_width * font_size
-		char_angle := advance_arc / radius
+		char_angle := advance_arc / radius if abs(radius) > 1e-6 else 0
 
 		mid_angle := pen_angle + char_angle * 0.5
 		pos_x := cx + radius * math.cos(mid_angle)
@@ -251,7 +248,7 @@ draw_text_on_wave :: proc(
 ) {
 	font := active_font(ctx)
 	pen_x := x
-	freq := math.TAU / wavelength
+	freq := math.TAU / wavelength if abs(wavelength) > 1e-6 else 0
 
 	for ch in text {
 		idx := int(ch)

@@ -33,7 +33,7 @@ Backends (`slug/backends/*/`) are thin wrappers that take the core's output and 
 - Upload vertex data from `ctx.vertices[]`
 - Issue draw calls
 
-The OpenGL backend is ~530 lines. A new backend (Metal, DirectX, WebGPU) would be ~300-500 lines, because all the hard work happens in the core.
+The OpenGL backend is ~580 lines (including the inline GLSL shaders). The Vulkan backend is larger (~1700 lines across two files) because Vulkan itself demands more boilerplate, but the slug-specific logic in each backend is still a small fraction of the total. A new backend for a modern API like Metal or WebGPU would likely land somewhere in between, since the hard work all happens in the core.
 
 ### Why This Split Is Optimal
 
@@ -48,11 +48,13 @@ The OpenGL backend is ~530 lines. A new backend (Metal, DirectX, WebGPU) would b
 ```odin
 Context :: struct {
     fonts:           [MAX_FONT_SLOTS]Font,
+    font_loaded:     [MAX_FONT_SLOTS]bool,
+    font_count:      int,
+    active_font_idx: int,
     vertices:        [MAX_GLYPH_VERTICES]Vertex,
     quad_count:      u32,
     font_quad_start: [MAX_FONT_SLOTS]u32,
     font_quad_count: [MAX_FONT_SLOTS]u32,
-    // ...
 }
 ```
 
@@ -106,7 +108,7 @@ The `* 2.0` factor over-partitions slightly. More bands = smaller curve lists pe
 
 ### Band Sorting
 
-Curves within each band are sorted by their maximum extent (max X for horizontal bands, max Y for vertical bands). This enables the fragment shader's early-exit optimization: when evaluating curves in a band, if the current curve's max extent is beyond the pixel's position, all remaining curves in that band are also beyond it. The shader can break out of the loop early.
+Curves within each band are sorted by their maximum extent in descending order (max X for horizontal bands, max Y for vertical bands). This enables the fragment shader's early-exit optimization: curves with the largest extent come first. Once the shader reaches a curve whose maximum extent is entirely behind the current pixel (all control points on the negative side), every remaining curve in that band is also behind it, so the shader breaks out of the loop.
 
 ## GPU Textures: Curve + Band
 
@@ -195,7 +197,17 @@ The fragment shader algorithm:
 6. Apply antialiasing using screen-space derivatives (from the Jacobian)
 7. Output coverage * vertex color
 
-The shader uses the "perpendicular distance" method for antialiasing: compute the distance from the pixel center to the nearest curve in em-space, transform back to screen space using the Jacobian, and use that distance as the alpha value. This produces smooth edges without MSAA.
+The shader combines horizontal and vertical coverage estimates for antialiasing. For each band direction, it computes root intersections using the quadratic formula, converts those to screen-space pixel offsets, and accumulates signed coverage (via clamped winding contributions) and edge weight (how close the nearest root is). The final coverage blends directional contributions based on their weights, producing smooth edges without MSAA.
+
+## Raylib Integration: The GL Loader Gotcha
+
+When using slug with Raylib, there's a critical setup step: Odin's `vendor:OpenGL` function pointers must be loaded explicitly. Raylib uses its own internal GLAD loader, which populates Raylib's internal GL function pointers — but `vendor:OpenGL` has separate function pointers that default to null.
+
+Without `gl.load_up_to(3, 3, glfw.gl_set_proc_address)` after `rl.InitWindow()`, every GL call in slug's OpenGL backend (shader compilation, texture creation, draw calls) will dereference null function pointers and segfault.
+
+This works because Raylib uses GLFW internally — the GLFW context already exists by the time `rl.InitWindow()` returns, so `glfw.gl_set_proc_address` can resolve GL functions from the same context.
+
+The `Renderer` struct must also be heap-allocated with `new()` — `slug.Context` contains a `[16384]Vertex` array (80 bytes each = ~1.3MB), which overflows the default stack.
 
 ## Why stb_truetype (and its Limitations)
 
@@ -213,7 +225,7 @@ All magic numbers are named constants:
 |----------|-------|-----------|
 | `BAND_TEXTURE_WIDTH` | 4096 | Maximum texture width widely supported. Matches `kLogBandTextureWidth` in shader. |
 | `MAX_CACHED_GLYPHS` | 256 | Covers ASCII + Latin-1 + icon slots. Increase for CJK support. |
-| `MAX_GLYPH_QUADS` | 4096 | ~4K visible glyphs per frame. 320KB vertex data. Increase if needed. |
+| `MAX_GLYPH_QUADS` | 4096 | ~4K visible glyphs per frame. ~1.3MB vertex data (4 verts * 80 bytes each). Increase if needed. |
 | `MAX_FONT_SLOTS` | 4 | Most apps use 1-3 fonts. 4 covers bold/italic variants. |
 | `DILATION_SCALE` | 1.0 | Pixels of quad expansion for antialiasing border. |
 

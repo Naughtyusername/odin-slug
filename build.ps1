@@ -16,6 +16,10 @@ function Do-Check {
     odin check slug/backends/opengl/ -no-entry-point
     Write-Host "OpenGL backend: OK"
 
+    Write-Host "=== Checking Raylib backend ==="
+    odin check slug/backends/raylib/ -no-entry-point
+    Write-Host "Raylib backend: OK"
+
     Write-Host "=== Checking Vulkan backend ==="
     odin check slug/backends/vulkan/ -no-entry-point
     Write-Host "Vulkan backend: OK"

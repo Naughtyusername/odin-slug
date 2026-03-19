@@ -376,7 +376,9 @@ load_font :: proc(r: ^Renderer, slot: int, path: string) -> bool {
 
 	r.ctx.fonts[slot] = font
 	r.ctx.font_loaded[slot] = true
-	r.ctx.font_count += 1
+	if slot >= r.ctx.font_count {
+		r.ctx.font_count = slot + 1
+	}
 
 	// Load ASCII glyphs and process into texture data
 	loaded := slug.font_load_ascii(&r.ctx.fonts[slot])

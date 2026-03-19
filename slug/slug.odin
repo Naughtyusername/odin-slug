@@ -51,6 +51,12 @@ MAX_GLYPH_INDICES :: MAX_GLYPH_QUADS * INDICES_PER_QUAD
 // Maximum simultaneously loaded fonts
 MAX_FONT_SLOTS :: 4
 
+// Pixels of quad expansion for antialiasing border
+DILATION_SCALE :: f32(1.0)
+
+// Maximum error for cubic-to-quadratic Bezier subdivision (in em-space units)
+CUBIC_TO_QUAD_TOLERANCE :: f32(0.001)
+
 // --- Vertex Format ---
 // Matches the 5x vec4 attribute layout in the vertex shader (locations 0-4).
 // 80 bytes per vertex. All data for fragment-shader curve evaluation is packed

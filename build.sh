@@ -31,6 +31,10 @@ do_check() {
     odin check slug/backends/opengl/ -no-entry-point
     echo "OpenGL backend: OK"
 
+    echo "=== Checking Raylib backend ==="
+    odin check slug/backends/raylib/ -no-entry-point
+    echo "Raylib backend: OK"
+
     echo "=== Checking Vulkan backend ==="
     odin check slug/backends/vulkan/ -no-entry-point
     echo "Vulkan backend: OK"

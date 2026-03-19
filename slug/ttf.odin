@@ -126,7 +126,7 @@ font_load_glyph :: proc(font: ^Font, codepoint: rune) -> bool {
 			cp1 := [2]f32{f32(v.cx) * font.em_scale, f32(v.cy) * font.em_scale}
 			cp2 := [2]f32{f32(v.cx1) * font.em_scale, f32(v.cy1) * font.em_scale}
 			cp3 := [2]f32{f32(v.x) * font.em_scale, f32(v.y) * font.em_scale}
-			cubic_to_quadratics(cp0, cp1, cp2, cp3, &g.curves, 0.001)
+			cubic_to_quadratics(cp0, cp1, cp2, cp3, &g.curves, CUBIC_TO_QUAD_TOLERANCE)
 
 		case STBTT_VMOVE:
 			continue
