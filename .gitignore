@@ -1,7 +1,10 @@
 # Build output
 *.o
 *.a
+*.so
+*.dylib
 *.exe
+*.pdb
 demo_opengl
 demo_raylib
 demo_vulkan

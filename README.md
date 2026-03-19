@@ -195,6 +195,7 @@ Wraps the OpenGL backend. Handles GL function pointer loading and Raylib batch f
 |------|---------|
 | `init(renderer, window)` | Create Vulkan instance, device, pipeline, buffers |
 | `load_font(renderer, slot, path, name)` | Load font + upload textures + create descriptor set |
+| `upload_font_textures(renderer, slot, pack, name)` | Upload pre-packed textures (advanced, for SVG icons) |
 | `begin_frame(renderer)` | Wait for GPU, reset quad counter |
 | `end_frame(renderer)` | Finalize per-font quad ranges |
 | `use_font(renderer, slot)` | Switch active font slot |

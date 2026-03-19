@@ -250,6 +250,18 @@ load_font :: proc(r: ^Renderer, slot: int, path: string, name: string = "") -> b
 	pack := slug.process_font(&r.ctx.fonts[slot])
 	defer slug.pack_result_destroy(&pack)
 
+	return upload_font_textures(r, slot, &pack, name)
+}
+
+// Upload pre-packed font textures to the GPU and create the descriptor set.
+// Use this when you need the manual pipeline (e.g., loading SVG icons into
+// a font before processing). For simple cases, use load_font() instead.
+upload_font_textures :: proc(r: ^Renderer, slot: int, pack: ^slug.Texture_Pack_Result, name: string = "") -> bool {
+	if slot < 0 || slot >= slug.MAX_FONT_SLOTS {
+		fmt.eprintln("Invalid font slot:", slot)
+		return false
+	}
+
 	fi := &r.font_instances[slot]
 
 	// Upload curve texture (R16G16B16A16_SFLOAT)
