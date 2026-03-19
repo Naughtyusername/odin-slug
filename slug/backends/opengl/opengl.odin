@@ -276,7 +276,7 @@ void main()
     }
 
     float coverage = CalcCoverage(xcov, ycov, xwgt, ywgt);
-    fragColor = vColor * coverage;
+    fragColor = vec4(1.0, 0.0, 0.0, 1.0); // DEBUG: solid red to test geometry
 }
 `
 
