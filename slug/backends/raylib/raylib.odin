@@ -7,8 +7,9 @@ package slug_raylib
 // the two Raylib-specific gotchas automatically:
 //
 //   1. Loading Odin's vendor:OpenGL function pointers
+//      from the GL context that Raylib already created.
 //      (Raylib uses its own internal GLAD loader, which
-//      does NOT populate vendor:OpenGL's function pointers)
+//      does NOT populate vendor:OpenGL's function pointers.)
 //
 //   2. Flushing Raylib's internal draw batch before slug
 //      touches GL state (shader, VAO, blend mode)
@@ -26,7 +27,6 @@ package slug_raylib
 // ===================================================
 
 import gl "vendor:OpenGL"
-import "vendor:glfw"
 import rlgl "vendor:raylib/rlgl"
 
 import slug "../../"
@@ -44,10 +44,10 @@ Renderer :: struct {
 
 // Initialize the slug renderer. Call AFTER rl.InitWindow().
 // Loads Odin's vendor:OpenGL function pointers from the
-// GLFW context that Raylib created internally, then sets
-// up the slug shader, VAO, VBO, and EBO.
+// already-active GL context, then sets up the slug shader,
+// VAO, VBO, and EBO.
 init :: proc(r: ^Renderer) -> bool {
-	gl.load_up_to(3, 3, glfw.gl_set_proc_address)
+	gl.load_up_to(3, 3, gl_set_proc_address)
 	return slug_gl.init(&r.gl_renderer)
 }
 
@@ -79,4 +79,13 @@ flush :: proc(r: ^Renderer, width, height: i32) {
 // Destroy all GL resources and free the slug context.
 destroy :: proc(r: ^Renderer) {
 	slug_gl.destroy(&r.gl_renderer)
+}
+
+// --- GL proc loader ---
+// Callback for gl.load_up_to(). Uses platform-specific
+// get_gl_proc() from gl_loader_*.odin files.
+
+@(private = "file")
+gl_set_proc_address :: proc(p: rawptr, name: cstring) {
+	(^rawptr)(p)^ = get_gl_proc(name)
 }

@@ -383,48 +383,7 @@ load_font :: proc(r: ^Renderer, slot: int, path: string) -> bool {
 	pack := slug.font_process(&r.ctx.fonts[slot])
 	defer slug.pack_result_destroy(&pack)
 
-	fg := &r.font_gl[slot]
-
-	// --- Curve texture: GL_RGBA16F ---
-	gl.GenTextures(1, &fg.curve_texture)
-	gl.BindTexture(gl.TEXTURE_2D, fg.curve_texture)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, i32(gl.NEAREST))
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, i32(gl.NEAREST))
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, i32(gl.CLAMP_TO_EDGE))
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, i32(gl.CLAMP_TO_EDGE))
-	gl.TexImage2D(
-		gl.TEXTURE_2D,
-		0, // level
-		i32(gl.RGBA16F), // internal format
-		i32(pack.curve_width), // width
-		i32(pack.curve_height), // height
-		0, // border
-		gl.RGBA, // format
-		gl.HALF_FLOAT, // type
-		raw_data(pack.curve_data[:]),
-	)
-
-	// --- Band texture: GL_RG16UI ---
-	gl.GenTextures(1, &fg.band_texture)
-	gl.BindTexture(gl.TEXTURE_2D, fg.band_texture)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, i32(gl.NEAREST))
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, i32(gl.NEAREST))
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, i32(gl.CLAMP_TO_EDGE))
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, i32(gl.CLAMP_TO_EDGE))
-	gl.TexImage2D(
-		gl.TEXTURE_2D,
-		0, // level
-		i32(gl.RG16UI), // internal format
-		i32(pack.band_width), // width
-		i32(pack.band_height), // height
-		0, // border
-		gl.RG_INTEGER, // format (integer textures need _INTEGER format)
-		gl.UNSIGNED_SHORT, // type
-		raw_data(pack.band_data[:]),
-	)
-
-	fg.loaded = true
-	return true
+	return upload_font_textures(r, slot, &pack)
 }
 
 // ===================================================

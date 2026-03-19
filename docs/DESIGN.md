@@ -199,17 +199,17 @@ The fragment shader algorithm:
 
 The shader combines horizontal and vertical coverage estimates for antialiasing. For each band direction, it computes root intersections using the quadratic formula, converts those to screen-space pixel offsets, and accumulates signed coverage (via clamped winding contributions) and edge weight (how close the nearest root is). The final coverage blends directional contributions based on their weights, producing smooth edges without MSAA.
 
-## Raylib Integration: The GL Loader Gotcha
+## Raylib Integration: The GL Loader Problem
 
-When using slug with Raylib, there's a critical setup step: Odin's `vendor:OpenGL` function pointers must be loaded explicitly. Raylib uses its own internal GLAD loader, which populates Raylib's internal GL function pointers — but `vendor:OpenGL` has separate function pointers that default to null.
+When using slug with Raylib, Odin's `vendor:OpenGL` function pointers must be loaded explicitly. Raylib uses its own internal GLAD loader, which populates Raylib's internal GL function pointers — but `vendor:OpenGL` has separate function pointers that default to null. Without loading them, every GL call in slug's OpenGL backend (shader compilation, texture creation, draw calls) dereferences null function pointers and segfaults.
 
-Without `gl.load_up_to(3, 3, glfw.gl_set_proc_address)` after `rl.InitWindow()`, every GL call in slug's OpenGL backend (shader compilation, texture creation, draw calls) will dereference null function pointers and segfault.
+The naive fix is `gl.load_up_to(3, 3, glfw.gl_set_proc_address)` — but this creates a dependency on `vendor:glfw`, which links to the system's GLFW shared library. Raylib bundles its own GLFW internally. On Linux, this means two separate GLFW instances in the same process; on Windows, `vendor:glfw` may not even find a GLFW library at all. Either way, the function pointers come back NULL.
 
-This works because Raylib uses GLFW internally — the GLFW context already exists by the time `rl.InitWindow()` returns, so `glfw.gl_set_proc_address` can resolve GL functions from the same context.
+The correct fix is to load GL function addresses directly from the GL library that's already in the process — the one Raylib loaded when it created the GL context. On Linux/macOS, `dlsym(RTLD_DEFAULT, name)` searches all loaded shared objects. On Windows, `wglGetProcAddress` + fallback to `GetProcAddress(opengl32.dll)` covers both extension and core GL functions. The Raylib backend uses platform-specific files (`gl_loader_linux.odin`, `gl_loader_windows.odin`) to implement this.
 
 The `Renderer` struct must also be heap-allocated with `new()` — `slug.Context` contains a `[16384]Vertex` array (80 bytes each = ~1.3MB), which overflows the default stack.
 
-**If you use `slug/backends/raylib/`**, you don't need to worry about any of this. The Raylib backend calls `gl.load_up_to` during `init` and calls `rlgl.DrawRenderBatchActive` during `flush`, so both gotchas are handled automatically.
+**If you use `slug/backends/raylib/`**, you don't need to worry about any of this. The Raylib backend loads GL procs during `init` and calls `rlgl.DrawRenderBatchActive` during `flush`, so both gotchas are handled automatically.
 
 ## Why stb_truetype (and its Limitations)
 
