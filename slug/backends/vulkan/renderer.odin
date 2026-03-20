@@ -93,9 +93,11 @@ Renderer :: struct {
 	// Resize tracking
 	framebuffer_resized:   bool,
 
-	// Font instances (GPU resources per font slot)
+	// Font instances (GPU resources per font slot, unused in shared atlas mode)
 	font_instances:        [slug.MAX_FONT_SLOTS]Font_Instance,
 
+	// Shared atlas (used when ctx.shared_atlas is true)
+	shared_instance:       Font_Instance,
 }
 
 // --- Public API ---
@@ -168,6 +170,12 @@ unload_font :: proc(r: ^Renderer, slot: int) {
 destroy :: proc(r: ^Renderer) {
 	if r.device != nil {
 		vk.DeviceWaitIdle(r.device)
+	}
+
+	// Shared atlas
+	if r.shared_instance.loaded {
+		gpu_texture_destroy(r, &r.shared_instance.curve_texture)
+		gpu_texture_destroy(r, &r.shared_instance.band_texture)
 	}
 
 	// Font instances
@@ -347,6 +355,112 @@ upload_font_textures :: proc(r: ^Renderer, slot: int, pack: ^slug.Texture_Pack_R
 	return true
 }
 
+// Upload a shared font atlas (all fonts packed into one texture pair).
+// Call with the result of slug.fonts_process_shared().
+upload_shared_textures :: proc(r: ^Renderer, pack: ^slug.Texture_Pack_Result) -> bool {
+	fi := &r.shared_instance
+
+	// Upload curve texture (R16G16B16A16_SFLOAT)
+	curve_data_size := len(pack.curve_data) * size_of([4]u16)
+	curve_tex, curve_ok := gpu_texture_create(
+		r,
+		pack.curve_width,
+		pack.curve_height,
+		.R16G16B16A16_SFLOAT,
+		raw_data(pack.curve_data),
+		curve_data_size,
+	)
+	if !curve_ok do return false
+	fi.curve_texture = curve_tex
+
+	// Upload band texture (R16G16_UINT)
+	band_data_size := len(pack.band_data) * size_of([2]u16)
+	band_tex, band_ok := gpu_texture_create(
+		r,
+		pack.band_width,
+		pack.band_height,
+		.R16G16_UINT,
+		raw_data(pack.band_data),
+		band_data_size,
+	)
+	if !band_ok {
+		gpu_texture_destroy(r, &fi.curve_texture)
+		return false
+	}
+	fi.band_texture = band_tex
+
+	// Allocate descriptor set
+	alloc_info := vk.DescriptorSetAllocateInfo {
+		sType              = .DESCRIPTOR_SET_ALLOCATE_INFO,
+		descriptorPool     = r.descriptor_pool,
+		descriptorSetCount = 1,
+		pSetLayouts        = &r.descriptor_set_layout,
+	}
+
+	result := vk.AllocateDescriptorSets(r.device, &alloc_info, &fi.descriptor_set)
+	if result != .SUCCESS {
+		gpu_texture_destroy(r, &fi.band_texture)
+		gpu_texture_destroy(r, &fi.curve_texture)
+		return false
+	}
+
+	// Write descriptor set
+	curve_image_info := vk.DescriptorImageInfo {
+		imageLayout = .SHADER_READ_ONLY_OPTIMAL,
+		imageView   = fi.curve_texture.view,
+		sampler     = fi.curve_texture.sampler,
+	}
+	band_image_info := vk.DescriptorImageInfo {
+		imageLayout = .SHADER_READ_ONLY_OPTIMAL,
+		imageView   = fi.band_texture.view,
+		sampler     = fi.band_texture.sampler,
+	}
+	writes := [2]vk.WriteDescriptorSet {
+		{
+			sType = .WRITE_DESCRIPTOR_SET,
+			dstSet = fi.descriptor_set,
+			dstBinding = 0,
+			descriptorType = .COMBINED_IMAGE_SAMPLER,
+			descriptorCount = 1,
+			pImageInfo = &curve_image_info,
+		},
+		{
+			sType = .WRITE_DESCRIPTOR_SET,
+			dstSet = fi.descriptor_set,
+			dstBinding = 1,
+			descriptorType = .COMBINED_IMAGE_SAMPLER,
+			descriptorCount = 1,
+			pImageInfo = &band_image_info,
+		},
+	}
+	vk.UpdateDescriptorSets(r.device, len(writes), &writes[0], 0, nil)
+
+	fi.loaded = true
+	fi.name = "shared_atlas"
+	return true
+}
+
+// Load multiple fonts and pack them into a shared atlas.
+// paths is a slice of TTF file paths, loaded into slots 0, 1, 2, ...
+// Returns false if any font fails to load.
+load_fonts_shared :: proc(r: ^Renderer, paths: []string) -> bool {
+	if len(paths) > slug.MAX_FONT_SLOTS do return false
+
+	for path, slot in paths {
+		font, font_ok := slug.font_load(path)
+		if !font_ok do return false
+
+		slug.register_font(&r.ctx, slot, font)
+		loaded := slug.font_load_ascii(&r.ctx.fonts[slot])
+		if loaded == 0 do return false
+	}
+
+	pack := slug.fonts_process_shared(&r.ctx)
+	defer slug.pack_result_destroy(&pack)
+
+	return upload_shared_textures(r, &pack)
+}
+
 begin_frame :: proc(r: ^Renderer) {
 	// Wait for all in-flight frames before overwriting shared vertex buffer
 	if r.device != nil && r.in_flight_fences != nil {
@@ -457,20 +571,29 @@ draw_frame :: proc(r: ^Renderer) -> bool {
 		vk.CmdBindVertexBuffers(cmd, 0, 1, &r.vertex_buffer, &vb_offset)
 		vk.CmdBindIndexBuffer(cmd, r.index_buffer, 0, .UINT32)
 
-		// Issue per-font draw calls
-		for fi in 0 ..< slug.MAX_FONT_SLOTS {
-			qcount := r.ctx.font_quad_count[fi]
-			if qcount == 0 do continue
-			if !r.font_instances[fi].loaded do continue
-
-			ds := r.font_instances[fi].descriptor_set
-			if ds == 0 do continue
-
+		if r.ctx.shared_atlas && r.shared_instance.loaded {
+			// Shared atlas: one descriptor bind, one draw call
+			ds := r.shared_instance.descriptor_set
 			vk.CmdBindDescriptorSets(cmd, .GRAPHICS, r.pipeline_layout, 0, 1, &ds, 0, nil)
 
-			first_index := r.ctx.font_quad_start[fi] * slug.INDICES_PER_QUAD
-			index_count := qcount * slug.INDICES_PER_QUAD
-			vk.CmdDrawIndexed(cmd, index_count, 1, first_index, 0, 0)
+			index_count := r.ctx.quad_count * slug.INDICES_PER_QUAD
+			vk.CmdDrawIndexed(cmd, index_count, 1, 0, 0, 0)
+		} else {
+			// Per-font draw calls
+			for fi in 0 ..< slug.MAX_FONT_SLOTS {
+				qcount := r.ctx.font_quad_count[fi]
+				if qcount == 0 do continue
+				if !r.font_instances[fi].loaded do continue
+
+				ds := r.font_instances[fi].descriptor_set
+				if ds == 0 do continue
+
+				vk.CmdBindDescriptorSets(cmd, .GRAPHICS, r.pipeline_layout, 0, 1, &ds, 0, nil)
+
+				first_index := r.ctx.font_quad_start[fi] * slug.INDICES_PER_QUAD
+				index_count := qcount * slug.INDICES_PER_QUAD
+				vk.CmdDrawIndexed(cmd, index_count, 1, first_index, 0, 0)
+			}
 		}
 	}
 
@@ -944,10 +1067,11 @@ create_descriptor_set_layout :: proc(r: ^Renderer) -> bool {
 
 @(private = "file")
 create_descriptor_pool :: proc(r: ^Renderer) -> bool {
+	// +1 set for shared atlas, +2 samplers for shared atlas textures
 	pool_sizes := [1]vk.DescriptorPoolSize {
 		{
 			type            = .COMBINED_IMAGE_SAMPLER,
-			descriptorCount = 2 * slug.MAX_FONT_SLOTS, // 2 textures per font
+			descriptorCount = 2 * (slug.MAX_FONT_SLOTS + 1),
 		},
 	}
 
@@ -955,7 +1079,7 @@ create_descriptor_pool :: proc(r: ^Renderer) -> bool {
 		sType         = .DESCRIPTOR_POOL_CREATE_INFO,
 		poolSizeCount = len(pool_sizes),
 		pPoolSizes    = &pool_sizes[0],
-		maxSets       = slug.MAX_FONT_SLOTS,
+		maxSets       = slug.MAX_FONT_SLOTS + 1,
 	}
 
 	result := vk.CreateDescriptorPool(r.device, &pool_info, nil, &r.descriptor_pool)

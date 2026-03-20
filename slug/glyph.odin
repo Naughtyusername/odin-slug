@@ -322,6 +322,7 @@ f32_to_f16 :: proc(value: f32) -> u16 {
 
 // Process all valid glyphs in a font and pack textures.
 // Convenience proc that calls glyph_process on each glyph, then packs.
+// For multi-font setups, prefer fonts_process_shared() for better performance.
 font_process :: proc(font: ^Font) -> Texture_Pack_Result {
 	for _, &g in font.glyphs {
 		if g.valid && len(g.curves) > 0 {
@@ -329,4 +330,156 @@ font_process :: proc(font: ^Font) -> Texture_Pack_Result {
 		}
 	}
 	return pack_glyph_textures(font)
+}
+
+// Process all registered fonts and pack their glyphs into a single shared
+// texture atlas. Returns one Texture_Pack_Result covering all fonts.
+// Sets ctx.shared_atlas = true, enabling free font interleaving and
+// single-draw-call rendering in backends.
+//
+// Call this AFTER loading all fonts and their glyphs (font_load_ascii, etc.).
+// The returned pack replaces any per-font packs — use upload_shared_textures
+// on the backend instead of per-font upload_font_textures.
+fonts_process_shared :: proc(ctx: ^Context) -> Texture_Pack_Result {
+	// Process glyphs for all registered fonts
+	for fi in 0 ..< MAX_FONT_SLOTS {
+		if !ctx.font_loaded[fi] do continue
+		font := &ctx.fonts[fi]
+		for _, &g in font.glyphs {
+			if g.valid && len(g.curves) > 0 {
+				glyph_process(&g)
+			}
+		}
+	}
+
+	ctx.shared_atlas = true
+	return pack_glyph_textures_shared(ctx.fonts[:], ctx.font_loaded[:])
+}
+
+// Pack glyphs from multiple fonts into a single pair of GPU textures.
+// Each glyph's curve_tex_x/y and band_tex_x/y are set to point into
+// the shared atlas, so vertex data works unchanged.
+@(private = "file")
+pack_glyph_textures_shared :: proc(
+	fonts: []Font,
+	font_loaded: []bool,
+) -> (result: Texture_Pack_Result) {
+	curve_x: u32 = 0
+	curve_y: u32 = 0
+	band_x: u32 = 0
+	band_y: u32 = 0
+
+	for fi in 0 ..< len(fonts) {
+		if !font_loaded[fi] do continue
+		font := &fonts[fi]
+
+		for _, &g in font.glyphs {
+			if !g.valid || len(g.curves) == 0 do continue
+
+			num_curve_texels := u32(len(g.curves) * 2)
+
+			if curve_x + num_curve_texels > BAND_TEXTURE_WIDTH {
+				for curve_x < BAND_TEXTURE_WIDTH {
+					append(&result.curve_data, [4]u16{0, 0, 0, 0})
+					curve_x += 1
+				}
+				curve_x = 0
+				curve_y += 1
+			}
+
+			g.curve_tex_x = u16(curve_x)
+			g.curve_tex_y = u16(curve_y)
+
+			for &curve in g.curves {
+				append(
+					&result.curve_data,
+					[4]u16 {
+						f32_to_f16(curve.p1.x),
+						f32_to_f16(curve.p1.y),
+						f32_to_f16(curve.p2.x),
+						f32_to_f16(curve.p2.y),
+					},
+				)
+				append(
+					&result.curve_data,
+					[4]u16{f32_to_f16(curve.p3.x), f32_to_f16(curve.p3.y), 0, 0},
+				)
+				curve_x += 2
+			}
+
+			h_count := len(g.h_bands)
+			v_count := len(g.v_bands)
+			total_band_texels := u32(h_count + v_count + len(g.h_curve_lists) + len(g.v_curve_lists))
+
+			if band_x + total_band_texels > BAND_TEXTURE_WIDTH {
+				for band_x < BAND_TEXTURE_WIDTH {
+					append(&result.band_data, [2]u16{0, 0})
+					band_x += 1
+				}
+				band_x = 0
+				band_y += 1
+			}
+
+			g.band_tex_x = u16(band_x)
+			g.band_tex_y = u16(band_y)
+
+			curve_list_base := u32(h_count + v_count)
+
+			for bi in 0 ..< h_count {
+				band := &g.h_bands[bi]
+				append(
+					&result.band_data,
+					[2]u16{band.curve_count, u16(curve_list_base + u32(band.data_offset))},
+				)
+			}
+
+			for bi in 0 ..< v_count {
+				band := &g.v_bands[bi]
+				append(
+					&result.band_data,
+					[2]u16 {
+						band.curve_count,
+						u16(curve_list_base + u32(len(g.h_curve_lists)) + u32(band.data_offset)),
+					},
+				)
+			}
+
+			for ci in g.h_curve_lists {
+				curve_texel_offset := u32(ci) * 2
+				ctx_x := u32(g.curve_tex_x) + curve_texel_offset
+				ctx_y := u32(g.curve_tex_y)
+				ctx_y += ctx_x / BAND_TEXTURE_WIDTH
+				ctx_x = ctx_x % BAND_TEXTURE_WIDTH
+				append(&result.band_data, [2]u16{u16(ctx_x), u16(ctx_y)})
+			}
+
+			for ci in g.v_curve_lists {
+				curve_texel_offset := u32(ci) * 2
+				ctx_x := u32(g.curve_tex_x) + curve_texel_offset
+				ctx_y := u32(g.curve_tex_y)
+				ctx_y += ctx_x / BAND_TEXTURE_WIDTH
+				ctx_x = ctx_x % BAND_TEXTURE_WIDTH
+				append(&result.band_data, [2]u16{u16(ctx_x), u16(ctx_y)})
+			}
+
+			band_x += total_band_texels
+		}
+	}
+
+	result.curve_width = BAND_TEXTURE_WIDTH
+	result.curve_height = max(curve_y + 1, 1)
+	result.band_width = BAND_TEXTURE_WIDTH
+	result.band_height = max(band_y + 1, 1)
+
+	target_curve_texels := int(result.curve_width * result.curve_height)
+	if len(result.curve_data) < target_curve_texels {
+		resize(&result.curve_data, target_curve_texels)
+	}
+
+	target_band_texels := int(result.band_width * result.band_height)
+	if len(result.band_data) < target_band_texels {
+		resize(&result.band_data, target_band_texels)
+	}
+
+	return result
 }

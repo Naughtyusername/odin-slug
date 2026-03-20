@@ -102,35 +102,43 @@ main :: proc() {
 	}
 
 	// -----------------------------------------------
-	// 3. Load font + SVG icons
+	// 3. Load fonts + SVG icons into shared atlas
 	// -----------------------------------------------
 	//
-	// SVG icons must be loaded before font_process(), so we use the
-	// manual pipeline here. For fonts without icons, use slug_rl.load_font().
+	// All fonts are packed into a single pair of GPU textures (curve + band).
+	// This means: one texture bind, one draw call for all text, and free
+	// font interleaving (no restriction on use_font switching order).
 
 	ctx := slug_rl.ctx(renderer)
 	{
-		font, font_ok := slug.font_load(FONT_PATH)
-		if !font_ok {
+		// Font 0: sans-serif + SVG icons
+		font0, font0_ok := slug.font_load(FONT_PATH)
+		if !font0_ok {
 			fmt.eprintln("Failed to load font:", FONT_PATH)
 			return
 		}
-		slug.font_load_ascii(&font)
-		slug.font_load_range(&font, 160, 255) // Latin-1 Supplement (é, ñ, ü, etc.)
-		slug.svg_load_into_font(&font, ICON_SWORD, ICON_SWORD_PATH)
-		slug.svg_load_into_font(&font, ICON_HEART, ICON_HEART_PATH)
-		slug.svg_load_into_font(&font, ICON_SHIELD, ICON_SHIELD_PATH)
-		slug.svg_load_into_font(&font, ICON_CIRCLE, ICON_CIRCLE_PATH)
+		slug.font_load_ascii(&font0)
+		slug.font_load_range(&font0, 160, 255) // Latin-1 Supplement (é, ñ, ü, etc.)
+		slug.svg_load_into_font(&font0, ICON_SWORD, ICON_SWORD_PATH)
+		slug.svg_load_into_font(&font0, ICON_HEART, ICON_HEART_PATH)
+		slug.svg_load_into_font(&font0, ICON_SHIELD, ICON_SHIELD_PATH)
+		slug.svg_load_into_font(&font0, ICON_CIRCLE, ICON_CIRCLE_PATH)
+		slug.register_font(ctx, 0, font0)
 
-		pack := slug.font_process(&font)
+		// Font 1: serif
+		font1, font1_ok := slug.font_load(FONT_SERIF_PATH)
+		if !font1_ok {
+			fmt.eprintln("Failed to load font:", FONT_SERIF_PATH)
+			return
+		}
+		slug.font_load_ascii(&font1)
+		slug.register_font(ctx, 1, font1)
+
+		// Pack all fonts into a shared atlas — one texture pair for everything
+		pack := slug.fonts_process_shared(ctx)
 		defer slug.pack_result_destroy(&pack)
-
-		slug.register_font(ctx, 0, font)
-		slug_rl.upload_font_textures(renderer, 0, &pack)
+		slug_rl.upload_shared_textures(renderer, &pack)
 	}
-
-	// Load second font (serif) into slot 1
-	slug_rl.load_font(renderer, 1, FONT_SERIF_PATH)
 
 	// -----------------------------------------------
 	// 4. Cache static text (created once, drawn every frame)
@@ -183,9 +191,20 @@ main :: proc() {
 			}
 		}
 
-		// Cursor positioning: Left/Right keys move cursor
+		// Cursor positioning: Left/Right keys or click to position
 		if rl.IsKeyPressed(.LEFT) && cursor_idx > 0 do cursor_idx -= 1
 		if rl.IsKeyPressed(.RIGHT) && cursor_idx < len(cursor_text) do cursor_idx += 1
+		// Click-to-position: if mouse clicked near the cursor text, snap cursor
+		CURSOR_X :: f32(40)
+		CURSOR_Y :: f32(290)
+		CURSOR_HIT_HEIGHT :: f32(24)
+		if rl.IsMouseButtonPressed(.LEFT) {
+			if mouse_y >= CURSOR_Y - CURSOR_HIT_HEIGHT && mouse_y <= CURSOR_Y + 4 &&
+			   mouse_x >= CURSOR_X {
+				cursor_font := slug.active_font(ctx)
+				cursor_idx = slug.index_from_x(cursor_font, cursor_text, SMALL_SIZE, mouse_x - CURSOR_X)
+			}
+		}
 
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.Color{20, 20, 30, 255})
@@ -365,9 +384,7 @@ main :: proc() {
 		rl.DrawRectangle(i32(scroll_region.x + scroll_region.width - 4), thumb_y, 4, thumb_h, rl.Color{100, 100, 160, 200})
 		slug.draw_text(ctx, "Scroll me! [wheel]", scroll_region.x, scroll_region.y - 18, 14, {0.5, 0.5, 0.7, 1.0})
 
-		// -- Cursor positioning demo (Left/Right arrow keys) --
-		CURSOR_X :: f32(40)
-		CURSOR_Y :: f32(390)
+		// -- Cursor positioning demo (Left/Right arrow keys or click) --
 		slug.draw_text(ctx, cursor_text, CURSOR_X, CURSOR_Y, SMALL_SIZE, {0.7, 0.9, 0.7, 1.0})
 		cursor_px := slug.cursor_x_from_index(font, cursor_text, SMALL_SIZE, cursor_idx)
 		// Blinking cursor line
@@ -375,7 +392,7 @@ main :: proc() {
 			cursor_screen_x := i32(CURSOR_X + cursor_px)
 			rl.DrawLine(cursor_screen_x, i32(CURSOR_Y) - 18, cursor_screen_x, i32(CURSOR_Y) + 4, rl.Color{200, 255, 200, 255})
 		}
-		slug.draw_text(ctx, fmt.tprintf("[</>] idx:%d", cursor_idx), CURSOR_X, CURSOR_Y + 20, 14, {0.5, 0.5, 0.5, 1.0})
+		slug.draw_text(ctx, fmt.tprintf("[</>] or click  idx:%d", cursor_idx), CURSOR_X, CURSOR_Y + 20, 14, {0.5, 0.5, 0.5, 1.0})
 
 		// -- Multi-font demo: switch to serif for a line --
 		slug.use_font(ctx, 1)

@@ -167,6 +167,12 @@ Context :: struct {
 	// Active font for drawing
 	active_font_idx: int,
 
+	// When true, all fonts share a single curve/band texture atlas.
+	// Enables free font interleaving (no use_font switching restriction)
+	// and single-draw-call rendering in backends.
+	// Set automatically by fonts_process_shared().
+	shared_atlas:    bool,
+
 	// UI scale factor — multiplied into font sizes via scaled_size().
 	// Set this to match your display DPI or user preference.
 	// Default: 1.0 (set in begin()).
@@ -176,7 +182,7 @@ Context :: struct {
 	vertices:        [MAX_GLYPH_VERTICES]Vertex,
 	quad_count:      u32,
 
-	// Per-font quad ranges for batched draw calls
+	// Per-font quad ranges for batched draw calls (unused in shared_atlas mode)
 	font_quad_start: [MAX_FONT_SLOTS]u32,
 	font_quad_count: [MAX_FONT_SLOTS]u32,
 }
@@ -200,14 +206,21 @@ end :: proc(ctx: ^Context) {
 }
 
 // Switch to a different font slot. All subsequent draw calls use this font.
-// Returns false if the slot is invalid, not loaded, or already has quads
+// In shared_atlas mode: free interleaving, no restrictions.
+// In per-font mode: returns false if the slot already has quads
 // (switching back would corrupt the batch layout).
 use_font :: proc(ctx: ^Context, slot: int) -> bool {
 	if slot < 0 || slot >= MAX_FONT_SLOTS do return false
 	if !ctx.font_loaded[slot] do return false
 	if slot == ctx.active_font_idx do return true
 
-	// Reject switching back to a font that already has quads
+	// Shared atlas: just switch, no batch tracking needed
+	if ctx.shared_atlas {
+		ctx.active_font_idx = slot
+		return true
+	}
+
+	// Per-font mode: reject switching back to a font that already has quads
 	if ctx.font_quad_count[slot] > 0 do return false
 
 	// Finalize previous font's quad range

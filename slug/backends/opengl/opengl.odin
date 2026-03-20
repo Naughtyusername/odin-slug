@@ -46,8 +46,11 @@ Renderer :: struct {
 	vbo:           u32,
 	ibo:           u32,
 
-	// Per-font textures
+	// Per-font textures (used when NOT in shared atlas mode)
 	font_gl:       [slug.MAX_FONT_SLOTS]Font_GL,
+
+	// Shared atlas textures (used when ctx.shared_atlas is true)
+	shared_gl:     Font_GL,
 }
 
 // ===================================================
@@ -411,34 +414,53 @@ flush :: proc(r: ^Renderer, width, height: i32) {
 	gl.BindBuffer(gl.ARRAY_BUFFER, r.vbo)
 	gl.BufferSubData(gl.ARRAY_BUFFER, 0, int(vert_count) * VERTEX_SIZE, &r.ctx.vertices[0])
 
-	// Per-font batched draw calls
-	for fi in 0 ..< slug.MAX_FONT_SLOTS {
-		qcount := r.ctx.font_quad_count[fi]
-		if qcount == 0 do continue
-
-		fg := &r.font_gl[fi]
-		if !fg.loaded do continue
-
-		// Bind curve texture to unit 0
+	if r.ctx.shared_atlas && r.shared_gl.loaded {
+		// Shared atlas: one texture bind, one draw call for all quads
 		gl.ActiveTexture(gl.TEXTURE0)
-		gl.BindTexture(gl.TEXTURE_2D, fg.curve_texture)
+		gl.BindTexture(gl.TEXTURE_2D, r.shared_gl.curve_texture)
 		gl.Uniform1i(r.curve_tex_loc, 0)
 
-		// Bind band texture to unit 1
 		gl.ActiveTexture(gl.TEXTURE0 + 1)
-		gl.BindTexture(gl.TEXTURE_2D, fg.band_texture)
+		gl.BindTexture(gl.TEXTURE_2D, r.shared_gl.band_texture)
 		gl.Uniform1i(r.band_tex_loc, 1)
 
-		// Draw this font's quad range
-		first_index := r.ctx.font_quad_start[fi] * slug.INDICES_PER_QUAD
-		index_count := qcount * slug.INDICES_PER_QUAD
-
+		index_count := quad_count * slug.INDICES_PER_QUAD
 		gl.DrawElements(
 			gl.TRIANGLES,
 			i32(index_count),
 			gl.UNSIGNED_INT,
-			rawptr(uintptr(first_index * size_of(u32))),
+			nil,
 		)
+	} else {
+		// Per-font batched draw calls
+		for fi in 0 ..< slug.MAX_FONT_SLOTS {
+			qcount := r.ctx.font_quad_count[fi]
+			if qcount == 0 do continue
+
+			fg := &r.font_gl[fi]
+			if !fg.loaded do continue
+
+			// Bind curve texture to unit 0
+			gl.ActiveTexture(gl.TEXTURE0)
+			gl.BindTexture(gl.TEXTURE_2D, fg.curve_texture)
+			gl.Uniform1i(r.curve_tex_loc, 0)
+
+			// Bind band texture to unit 1
+			gl.ActiveTexture(gl.TEXTURE0 + 1)
+			gl.BindTexture(gl.TEXTURE_2D, fg.band_texture)
+			gl.Uniform1i(r.band_tex_loc, 1)
+
+			// Draw this font's quad range
+			first_index := r.ctx.font_quad_start[fi] * slug.INDICES_PER_QUAD
+			index_count := qcount * slug.INDICES_PER_QUAD
+
+			gl.DrawElements(
+				gl.TRIANGLES,
+				i32(index_count),
+				gl.UNSIGNED_INT,
+				rawptr(uintptr(first_index * size_of(u32))),
+			)
+		}
 	}
 
 	gl.BindVertexArray(0)
@@ -500,6 +522,73 @@ upload_font_textures :: proc(r: ^Renderer, slot: int, pack: ^slug.Texture_Pack_R
 	return true
 }
 
+// Upload a shared font atlas (all fonts packed into one texture pair).
+// Call with the result of slug.fonts_process_shared().
+// Replaces any per-font textures — use this OR per-font uploads, not both.
+upload_shared_textures :: proc(r: ^Renderer, pack: ^slug.Texture_Pack_Result) -> bool {
+	// Curve texture: GL_RGBA16F
+	gl.GenTextures(1, &r.shared_gl.curve_texture)
+	gl.BindTexture(gl.TEXTURE_2D, r.shared_gl.curve_texture)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, i32(gl.NEAREST))
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, i32(gl.NEAREST))
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, i32(gl.CLAMP_TO_EDGE))
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, i32(gl.CLAMP_TO_EDGE))
+	gl.TexImage2D(
+		gl.TEXTURE_2D,
+		0,
+		i32(gl.RGBA16F),
+		i32(pack.curve_width),
+		i32(pack.curve_height),
+		0,
+		gl.RGBA,
+		gl.HALF_FLOAT,
+		raw_data(pack.curve_data[:]),
+	)
+
+	// Band texture: GL_RG16UI
+	gl.GenTextures(1, &r.shared_gl.band_texture)
+	gl.BindTexture(gl.TEXTURE_2D, r.shared_gl.band_texture)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, i32(gl.NEAREST))
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, i32(gl.NEAREST))
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, i32(gl.CLAMP_TO_EDGE))
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, i32(gl.CLAMP_TO_EDGE))
+	gl.TexImage2D(
+		gl.TEXTURE_2D,
+		0,
+		i32(gl.RG16UI),
+		i32(pack.band_width),
+		i32(pack.band_height),
+		0,
+		gl.RG_INTEGER,
+		gl.UNSIGNED_SHORT,
+		raw_data(pack.band_data[:]),
+	)
+
+	r.shared_gl.loaded = true
+	return true
+}
+
+// Load multiple fonts and pack them into a shared atlas.
+// paths is a slice of TTF file paths, loaded into slots 0, 1, 2, ...
+// Returns false if any font fails to load.
+load_fonts_shared :: proc(r: ^Renderer, paths: []string) -> bool {
+	if len(paths) > slug.MAX_FONT_SLOTS do return false
+
+	for path, slot in paths {
+		font, font_ok := slug.font_load(path)
+		if !font_ok do return false
+
+		slug.register_font(&r.ctx, slot, font)
+		loaded := slug.font_load_ascii(&r.ctx.fonts[slot])
+		if loaded == 0 do return false
+	}
+
+	pack := slug.fonts_process_shared(&r.ctx)
+	defer slug.pack_result_destroy(&pack)
+
+	return upload_shared_textures(r, &pack)
+}
+
 // Unload a font from a slot, releasing GPU textures and CPU glyph data.
 // The slot can be reused with load_font or upload_font_textures.
 unload_font :: proc(r: ^Renderer, slot: int) {
@@ -519,6 +608,13 @@ unload_font :: proc(r: ^Renderer, slot: int) {
 // ===================================================
 
 destroy :: proc(r: ^Renderer) {
+	// Delete shared atlas textures
+	if r.shared_gl.loaded {
+		gl.DeleteTextures(1, &r.shared_gl.curve_texture)
+		gl.DeleteTextures(1, &r.shared_gl.band_texture)
+		r.shared_gl = {}
+	}
+
 	// Delete per-font textures
 	for fi in 0 ..< slug.MAX_FONT_SLOTS {
 		fg := &r.font_gl[fi]

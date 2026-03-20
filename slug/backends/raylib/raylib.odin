@@ -77,6 +77,19 @@ upload_font_textures :: proc(r: ^Renderer, slot: int, pack: ^slug.Texture_Pack_R
 	return slug_gl.upload_font_textures(&r.gl_renderer, slot, pack)
 }
 
+// Upload a shared font atlas (all fonts packed into one texture pair).
+// Call with the result of slug.fonts_process_shared().
+upload_shared_textures :: proc(r: ^Renderer, pack: ^slug.Texture_Pack_Result) -> bool {
+	return slug_gl.upload_shared_textures(&r.gl_renderer, pack)
+}
+
+// Load multiple fonts and pack them into a shared atlas.
+// paths is a slice of TTF file paths, loaded into slots 0, 1, 2, ...
+// Returns false if any font fails to load.
+load_fonts_shared :: proc(r: ^Renderer, paths: []string) -> bool {
+	return slug_gl.load_fonts_shared(&r.gl_renderer, paths)
+}
+
 // Flush Raylib's internal draw batch, then upload slug
 // vertices and issue draw calls for all font batches.
 // Call this between slug.end() and any post-slug Raylib drawing.
