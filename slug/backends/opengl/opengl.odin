@@ -500,6 +500,20 @@ upload_font_textures :: proc(r: ^Renderer, slot: int, pack: ^slug.Texture_Pack_R
 	return true
 }
 
+// Unload a font from a slot, releasing GPU textures and CPU glyph data.
+// The slot can be reused with load_font or upload_font_textures.
+unload_font :: proc(r: ^Renderer, slot: int) {
+	if slot < 0 || slot >= slug.MAX_FONT_SLOTS do return
+
+	fg := &r.font_gl[slot]
+	if fg.loaded {
+		gl.DeleteTextures(1, &fg.curve_texture)
+		gl.DeleteTextures(1, &fg.band_texture)
+		fg^ = {}
+	}
+	slug.unload_font(&r.ctx, slot)
+}
+
 // ===================================================
 // Shutdown — release all GL resources and slug context
 // ===================================================

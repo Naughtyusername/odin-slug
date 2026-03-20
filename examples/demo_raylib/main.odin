@@ -30,9 +30,10 @@ WINDOW_WIDTH :: 1280
 WINDOW_HEIGHT :: 720
 TARGET_FPS :: 60
 
-// --- Font path ---
+// --- Font paths ---
 
 FONT_PATH :: "examples/assets/fonts/LiberationSans-Regular.ttf"
+FONT_SERIF_PATH :: "examples/assets/fonts/LiberationSerif-Regular.ttf"
 
 // --- SVG icon glyph slots ---
 
@@ -127,6 +128,9 @@ main :: proc() {
 		slug.register_font(ctx, 0, font)
 		slug_rl.upload_font_textures(renderer, 0, &pack)
 	}
+
+	// Load second font (serif) into slot 1
+	slug_rl.load_font(renderer, 1, FONT_SERIF_PATH)
 
 	// -----------------------------------------------
 	// 4. Cache static text (created once, drawn every frame)
@@ -305,6 +309,10 @@ main :: proc() {
 		WRAP_PAD :: 8
 		text_h := slug.draw_text_wrapped(ctx, WRAP_TEXT, f32(WRAP_X + WRAP_PAD), f32(WRAP_Y + WRAP_PAD), SMALL_SIZE, WRAP_WIDTH - WRAP_PAD * 2, COLOR_WHITE)
 		rl.DrawRectangleLines(WRAP_X, WRAP_Y, i32(WRAP_WIDTH), i32(text_h) + WRAP_PAD * 2, rl.Color{80, 80, 120, 255})
+
+		// -- Multi-font demo: switch to serif for a line --
+		slug.use_font(ctx, 1)
+		slug.draw_text(ctx, "This line uses Liberation Serif (font slot 1)", LEFT_MARGIN, f32(BOX_Y + BOX_HEIGHT + 30), SMALL_SIZE, {0.9, 0.8, 0.6, 1.0})
 
 		// Finalize and draw.
 		slug.end(ctx)

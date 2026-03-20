@@ -1,7 +1,6 @@
 package slug_vulkan
 
 import "base:runtime"
-import "core:fmt"
 import "core:mem"
 import vk "vendor:vulkan"
 
@@ -69,7 +68,6 @@ create_buffer :: proc(
 
 	result := vk.CreateBuffer(r.device, &buf_info, nil, &buffer)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create buffer:", result)
 		return {}, {}, false
 	}
 
@@ -78,7 +76,6 @@ create_buffer :: proc(
 
 	mem_type, mem_type_ok := find_memory_type(r, mem_requirements.memoryTypeBits, properties)
 	if !mem_type_ok {
-		fmt.eprintln("Failed to find suitable memory type for buffer")
 		vk.DestroyBuffer(r.device, buffer, nil)
 		return {}, {}, false
 	}
@@ -91,14 +88,12 @@ create_buffer :: proc(
 
 	result = vk.AllocateMemory(r.device, &alloc_info, nil, &memory)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to allocate buffer memory:", result)
 		vk.DestroyBuffer(r.device, buffer, nil)
 		return {}, {}, false
 	}
 
 	result = vk.BindBufferMemory(r.device, buffer, memory, 0)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to bind buffer memory:", result)
 		vk.FreeMemory(r.device, memory, nil)
 		vk.DestroyBuffer(r.device, buffer, nil)
 		return {}, {}, false
@@ -119,7 +114,6 @@ begin_one_shot_commands :: proc(r: ^Renderer) -> vk.CommandBuffer {
 	cmd: vk.CommandBuffer
 	result := vk.AllocateCommandBuffers(r.device, &alloc_info, &cmd)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to allocate one-shot command buffer:", result)
 		return {}
 	}
 
@@ -129,7 +123,6 @@ begin_one_shot_commands :: proc(r: ^Renderer) -> vk.CommandBuffer {
 	}
 	result = vk.BeginCommandBuffer(cmd, &begin_info)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to begin one-shot command buffer:", result)
 		return {}
 	}
 	return cmd
@@ -226,7 +219,6 @@ gpu_texture_create :: proc(
 	mapped: rawptr
 	map_result := vk.MapMemory(r.device, staging_mem, 0, image_size, {}, &mapped)
 	if map_result != .SUCCESS {
-		fmt.eprintln("Failed to map staging memory:", map_result)
 		return {}, false
 	}
 	mem.copy(mapped, data, data_size)
@@ -249,7 +241,6 @@ gpu_texture_create :: proc(
 
 	result := vk.CreateImage(r.device, &image_info, nil, &tex.image)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create image:", result)
 		return {}, false
 	}
 
@@ -259,7 +250,6 @@ gpu_texture_create :: proc(
 
 	mem_type, mem_type_ok := find_memory_type(r, mem_requirements.memoryTypeBits, {.DEVICE_LOCAL})
 	if !mem_type_ok {
-		fmt.eprintln("Failed to find memory type for image")
 		vk.DestroyImage(r.device, tex.image, nil)
 		return {}, false
 	}
@@ -272,14 +262,12 @@ gpu_texture_create :: proc(
 
 	result = vk.AllocateMemory(r.device, &alloc, nil, &tex.memory)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to allocate image memory:", result)
 		vk.DestroyImage(r.device, tex.image, nil)
 		return {}, false
 	}
 
 	result = vk.BindImageMemory(r.device, tex.image, tex.memory, 0)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to bind image memory:", result)
 		vk.FreeMemory(r.device, tex.memory, nil)
 		vk.DestroyImage(r.device, tex.image, nil)
 		return {}, false
@@ -318,7 +306,6 @@ gpu_texture_create :: proc(
 
 	result = vk.CreateImageView(r.device, &view_info, nil, &tex.view)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create image view:", result)
 		gpu_texture_destroy(r, &tex)
 		return {}, false
 	}
@@ -337,7 +324,6 @@ gpu_texture_create :: proc(
 
 	result = vk.CreateSampler(r.device, &sampler_info, nil, &tex.sampler)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create sampler:", result)
 		gpu_texture_destroy(r, &tex)
 		return {}, false
 	}
@@ -365,7 +351,6 @@ create_shader_module :: proc(r: ^Renderer, code: []u8) -> (vk.ShaderModule, bool
 	mod: vk.ShaderModule
 	result := vk.CreateShaderModule(r.device, &create_info, nil, &mod)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create shader module:", result)
 		return {}, false
 	}
 
@@ -383,9 +368,7 @@ when ENABLE_VALIDATION {
 	) -> b32 {
 		context = #force_inline runtime_default_context()
 		if .ERROR in severity {
-			fmt.eprintln("VK ERROR:", callback_data.pMessage)
 		} else {
-			fmt.eprintln("VK WARN:", callback_data.pMessage)
 		}
 		return false
 	}

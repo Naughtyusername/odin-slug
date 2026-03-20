@@ -121,6 +121,36 @@ draw_text :: proc(
 	}
 }
 
+// Draw text horizontally centered at x.
+// x is the center point, not the left edge.
+draw_text_centered :: proc(
+	ctx: ^Context,
+	text: string,
+	x, y: f32,
+	font_size: f32,
+	color: Color,
+	use_kerning: bool = true,
+) {
+	font := active_font(ctx)
+	w, _ := measure_text(font, text, font_size, use_kerning)
+	draw_text(ctx, text, x - w * 0.5, y, font_size, color, use_kerning)
+}
+
+// Draw text right-aligned so the last character ends at x.
+// x is the right edge, not the left edge.
+draw_text_right :: proc(
+	ctx: ^Context,
+	text: string,
+	x, y: f32,
+	font_size: f32,
+	color: Color,
+	use_kerning: bool = true,
+) {
+	font := active_font(ctx)
+	w, _ := measure_text(font, text, font_size, use_kerning)
+	draw_text(ctx, text, x - w, y, font_size, color, use_kerning)
+}
+
 // Draw text with automatic word wrapping within max_width pixels.
 // Breaks on spaces and newlines. Words wider than max_width are
 // drawn on their own line without breaking mid-word.

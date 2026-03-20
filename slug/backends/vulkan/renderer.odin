@@ -1,6 +1,5 @@
 package slug_vulkan
 
-import "core:fmt"
 import "core:math/linalg"
 import "core:mem"
 import sdl "vendor:sdl3"
@@ -110,13 +109,11 @@ init :: proc(r: ^Renderer, window: ^sdl.Window) -> bool {
 
 	// Load Vulkan via SDL3
 	if !sdl.Vulkan_LoadLibrary(nil) {
-		fmt.eprintln("SDL3: Failed to load Vulkan library:", sdl.GetError())
 		return false
 	}
 
 	get_instance_proc := sdl.Vulkan_GetVkGetInstanceProcAddr()
 	if get_instance_proc == nil {
-		fmt.eprintln("SDL3: Failed to get vkGetInstanceProcAddr")
 		return false
 	}
 
@@ -131,7 +128,6 @@ init :: proc(r: ^Renderer, window: ^sdl.Window) -> bool {
 
 	// Create surface via SDL3
 	if !sdl.Vulkan_CreateSurface(window, r.instance, nil, &r.surface) {
-		fmt.eprintln("SDL3: Failed to create Vulkan surface:", sdl.GetError())
 		return false
 	}
 
@@ -152,6 +148,21 @@ init :: proc(r: ^Renderer, window: ^sdl.Window) -> bool {
 	if !create_vertex_index_buffers(r) do return false
 
 	return true
+}
+
+// Unload a font from a slot, releasing GPU textures and CPU glyph data.
+// The slot can be reused with load_font or upload_font_textures.
+unload_font :: proc(r: ^Renderer, slot: int) {
+	if slot < 0 || slot >= slug.MAX_FONT_SLOTS do return
+
+	fi := &r.font_instances[slot]
+	if fi.loaded {
+		vk.DeviceWaitIdle(r.device)
+		gpu_texture_destroy(r, &fi.curve_texture)
+		gpu_texture_destroy(r, &fi.band_texture)
+		fi^ = {}
+	}
+	slug.unload_font(&r.ctx, slot)
 }
 
 destroy :: proc(r: ^Renderer) {
@@ -230,13 +241,11 @@ destroy :: proc(r: ^Renderer) {
 
 load_font :: proc(r: ^Renderer, slot: int, path: string, name: string = "") -> bool {
 	if slot < 0 || slot >= slug.MAX_FONT_SLOTS {
-		fmt.eprintln("Invalid font slot:", slot)
 		return false
 	}
 
 	font, font_ok := slug.font_load(path)
 	if !font_ok {
-		fmt.eprintln("Failed to load font:", path)
 		return false
 	}
 	slug.register_font(&r.ctx, slot, font)
@@ -253,7 +262,6 @@ load_font :: proc(r: ^Renderer, slot: int, path: string, name: string = "") -> b
 // a font before processing). For simple cases, use load_font() instead.
 upload_font_textures :: proc(r: ^Renderer, slot: int, pack: ^slug.Texture_Pack_Result, name: string = "") -> bool {
 	if slot < 0 || slot >= slug.MAX_FONT_SLOTS {
-		fmt.eprintln("Invalid font slot:", slot)
 		return false
 	}
 
@@ -298,7 +306,6 @@ upload_font_textures :: proc(r: ^Renderer, slot: int, pack: ^slug.Texture_Pack_R
 
 	result := vk.AllocateDescriptorSets(r.device, &alloc_info, &fi.descriptor_set)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to allocate descriptor set for font slot:", slot)
 		gpu_texture_destroy(r, &fi.band_texture)
 		gpu_texture_destroy(r, &fi.curve_texture)
 		return false
@@ -387,7 +394,6 @@ draw_frame :: proc(r: ^Renderer) -> bool {
 		return true
 	}
 	if acquire_result != .SUCCESS && acquire_result != .SUBOPTIMAL_KHR {
-		fmt.eprintln("Failed to acquire swapchain image:", acquire_result)
 		return false
 	}
 
@@ -486,7 +492,6 @@ draw_frame :: proc(r: ^Renderer) -> bool {
 
 	submit_result := vk.QueueSubmit(r.graphics_queue, 1, &submit_info, r.in_flight_fences[frame])
 	if submit_result != .SUCCESS {
-		fmt.eprintln("Failed to submit draw command:", submit_result)
 		return false
 	}
 
@@ -506,7 +511,6 @@ draw_frame :: proc(r: ^Renderer) -> bool {
 	   r.framebuffer_resized {
 		if !recreate_swapchain(r) do return false
 	} else if present_result != .SUCCESS {
-		fmt.eprintln("Failed to present swapchain image:", present_result)
 		return false
 	}
 
@@ -560,7 +564,6 @@ create_instance :: proc(r: ^Renderer) -> bool {
 
 	result := vk.CreateInstance(&create_info, nil, &r.instance)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create Vulkan instance:", result)
 		return false
 	}
 
@@ -585,7 +588,6 @@ pick_physical_device :: proc(r: ^Renderer) -> bool {
 	device_count: u32
 	vk.EnumeratePhysicalDevices(r.instance, &device_count, nil)
 	if device_count == 0 {
-		fmt.eprintln("No Vulkan-capable GPU found")
 		return false
 	}
 
@@ -621,7 +623,6 @@ pick_physical_device :: proc(r: ^Renderer) -> bool {
 		return true
 	}
 
-	fmt.eprintln("No suitable GPU found")
 	return false
 }
 
@@ -689,7 +690,6 @@ create_logical_device :: proc(r: ^Renderer) -> bool {
 
 	result := vk.CreateDevice(r.physical_device, &create_info, nil, &r.device)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create logical device:", result)
 		return false
 	}
 
@@ -778,7 +778,6 @@ create_swapchain :: proc(r: ^Renderer, window: ^sdl.Window) -> bool {
 
 	result := vk.CreateSwapchainKHR(r.device, &sc_create_info, nil, &r.swapchain)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create swapchain:", result)
 		return false
 	}
 
@@ -812,7 +811,6 @@ create_image_views :: proc(r: ^Renderer) -> bool {
 
 		result := vk.CreateImageView(r.device, &iv_create_info, nil, &r.swapchain_views[i])
 		if result != .SUCCESS {
-			fmt.eprintln("Failed to create image view:", result)
 			return false
 		}
 	}
@@ -830,7 +828,6 @@ create_command_pool :: proc(r: ^Renderer) -> bool {
 
 	result := vk.CreateCommandPool(r.device, &pool_info, nil, &r.command_pool)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create command pool:", result)
 		return false
 	}
 
@@ -882,7 +879,6 @@ create_render_pass :: proc(r: ^Renderer) -> bool {
 
 	result := vk.CreateRenderPass(r.device, &rp_create_info, nil, &r.render_pass)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create render pass:", result)
 		return false
 	}
 
@@ -908,7 +904,6 @@ create_framebuffers :: proc(r: ^Renderer) -> bool {
 
 		result := vk.CreateFramebuffer(r.device, &fb_info, nil, &r.framebuffers[i])
 		if result != .SUCCESS {
-			fmt.eprintln("Failed to create framebuffer:", result)
 			return false
 		}
 	}
@@ -941,7 +936,6 @@ create_descriptor_set_layout :: proc(r: ^Renderer) -> bool {
 
 	result := vk.CreateDescriptorSetLayout(r.device, &layout_info, nil, &r.descriptor_set_layout)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create descriptor set layout:", result)
 		return false
 	}
 
@@ -966,7 +960,6 @@ create_descriptor_pool :: proc(r: ^Renderer) -> bool {
 
 	result := vk.CreateDescriptorPool(r.device, &pool_info, nil, &r.descriptor_pool)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create descriptor pool:", result)
 		return false
 	}
 
@@ -1109,7 +1102,6 @@ create_slug_pipeline :: proc(r: ^Renderer) -> bool {
 
 	result := vk.CreatePipelineLayout(r.device, &layout_info, nil, &r.pipeline_layout)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create pipeline layout:", result)
 		return false
 	}
 
@@ -1131,7 +1123,6 @@ create_slug_pipeline :: proc(r: ^Renderer) -> bool {
 
 	result = vk.CreateGraphicsPipelines(r.device, 0, 1, &pipeline_info, nil, &r.pipeline)
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to create Slug graphics pipeline:", result)
 		return false
 	}
 
@@ -1151,7 +1142,6 @@ create_command_buffers :: proc(r: ^Renderer) -> bool {
 
 	result := vk.AllocateCommandBuffers(r.device, &alloc_info, raw_data(r.command_buffers))
 	if result != .SUCCESS {
-		fmt.eprintln("Failed to allocate command buffers:", result)
 		return false
 	}
 
@@ -1194,7 +1184,6 @@ create_vertex_index_buffers :: proc(r: ^Renderer) -> bool {
 
 	mapped: rawptr
 	if vk.MapMemory(r.device, vm, 0, vb_size, {}, &mapped) != .SUCCESS {
-		fmt.eprintln("Failed to map vertex buffer")
 		return false
 	}
 	r.vertex_mapped = cast([^]slug.Vertex)mapped
@@ -1276,19 +1265,15 @@ recreate_swapchain :: proc(r: ^Renderer) -> bool {
 	cleanup_swapchain(r)
 
 	if !create_swapchain(r, r.window) {
-		fmt.eprintln("recreate_swapchain: failed to create swapchain")
 		return false
 	}
 	if !create_image_views(r) {
-		fmt.eprintln("recreate_swapchain: failed to create image views")
 		return false
 	}
 	if !create_framebuffers(r) {
-		fmt.eprintln("recreate_swapchain: failed to create framebuffers")
 		return false
 	}
 	if !create_command_buffers(r) {
-		fmt.eprintln("recreate_swapchain: failed to create command buffers")
 		return false
 	}
 

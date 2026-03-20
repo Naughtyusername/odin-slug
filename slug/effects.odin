@@ -347,3 +347,108 @@ draw_text_typewriter :: proc(
 
 	draw_text(ctx, text[:byte_end], x, y, font_size, color)
 }
+
+// --- Fade text ---
+// Whole-string alpha fade based on time. Useful for floating damage numbers,
+// toast notifications, or any text that should appear and disappear.
+// alpha_override directly sets the alpha (0.0 = invisible, 1.0 = fully visible).
+
+draw_text_fade :: proc(
+	ctx: ^Context,
+	text: string,
+	x, y: f32,
+	font_size: f32,
+	color: Color,
+	alpha: f32,
+) {
+	a := clamp(alpha, 0.0, 1.0)
+	if a <= 0 do return
+	faded := Color{color.r, color.g, color.b, color.a * a}
+	draw_text(ctx, text, x, y, font_size, faded)
+}
+
+// --- Gradient text ---
+// Per-character vertical color blend from top_color to bottom_color.
+// Since each glyph is a quad with 4 vertices (TL, TR, BR, BL), we set
+// top vertices to top_color and bottom vertices to bottom_color.
+
+draw_text_gradient :: proc(
+	ctx: ^Context,
+	text: string,
+	x, y: f32,
+	font_size: f32,
+	top_color: Color,
+	bottom_color: Color,
+) {
+	font := active_font(ctx)
+	pen_x := x
+
+	for ch in text {
+		g := get_glyph(font, ch)
+		if g == nil do continue
+
+		glyph_x := pen_x + g.bbox_min.x * font_size
+		glyph_y := y - g.bbox_max.y * font_size
+		glyph_w := (g.bbox_max.x - g.bbox_min.x) * font_size
+		glyph_h := (g.bbox_max.y - g.bbox_min.y) * font_size
+
+		if len(g.curves) > 0 && ctx.quad_count < MAX_GLYPH_QUADS {
+			// Emit quad manually to set per-vertex colors
+			base := ctx.quad_count * VERTICES_PER_QUAD
+			if base + VERTICES_PER_QUAD <= MAX_GLYPH_VERTICES {
+				emit_glyph_quad(ctx, g, glyph_x, glyph_y, glyph_w, glyph_h, top_color)
+
+				// Override bottom vertex colors (BR=index 2, BL=index 3)
+				ctx.vertices[base + 2].col = bottom_color
+				ctx.vertices[base + 3].col = bottom_color
+			}
+		}
+
+		pen_x += g.advance_width * font_size
+	}
+}
+
+// --- Scale pulse text ---
+// Each character pulses in size on a sine wave, staggered by position.
+// Creates a "breathing" or "popping" effect across the string.
+
+draw_text_pulse :: proc(
+	ctx: ^Context,
+	text: string,
+	x, y: f32,
+	font_size: f32,
+	color: Color,
+	time: f32,
+	scale_amount: f32 = 0.3,
+	frequency: f32 = 3.0,
+	phase_step: f32 = 0.5,
+) {
+	font := active_font(ctx)
+	pen_x := x
+	char_idx := 0
+
+	for ch in text {
+		g := get_glyph(font, ch)
+		if g == nil do continue
+
+		t := math.sin(time * frequency + f32(char_idx) * phase_step)
+		char_scale := 1.0 + t * scale_amount
+		scaled_size := font_size * char_scale
+
+		// Center the scaled glyph on where it would normally sit
+		center_x := pen_x + g.advance_width * font_size * 0.5
+		center_y := y
+
+		glyph_w := (g.bbox_max.x - g.bbox_min.x) * scaled_size
+		glyph_h := (g.bbox_max.y - g.bbox_min.y) * scaled_size
+		glyph_x := center_x + g.bbox_min.x * scaled_size - (g.advance_width * scaled_size - g.advance_width * font_size) * 0.5
+		glyph_y := center_y - g.bbox_max.y * scaled_size
+
+		if len(g.curves) > 0 && ctx.quad_count < MAX_GLYPH_QUADS {
+			emit_glyph_quad(ctx, g, glyph_x, glyph_y, glyph_w, glyph_h, color)
+		}
+
+		pen_x += g.advance_width * font_size
+		char_idx += 1
+	}
+}

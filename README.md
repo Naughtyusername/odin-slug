@@ -16,9 +16,11 @@ Slug skips rasterization entirely. The GPU evaluates the actual Bezier curves of
 - **SVG vector icons** -- parse SVG paths into the same GPU pipeline as text
 - **Text measurement** -- per-character, per-string, monospace grid, and line height helpers
 - **Text wrapping** -- automatic word breaking for UI panels with height return for layout
-- **Text effects** -- rainbow, wobble, shake, rotation, circular, wave, shadow, outline, typewriter
+- **Text effects** -- rainbow, wobble, shake, rotation, circular, wave, shadow, outline, fade, gradient, pulse, typewriter
 - **Static text caching** -- cache vertex data for unchanged text, draw with a single memcopy
 - **UI scaling** -- global scale factor for DPI awareness and accessibility
+- **Text alignment** -- centered, right-aligned draw helpers
+- **Font hot-reloading** -- swap fonts at runtime via unload + reload
 - **Kerning** -- automatic kern pair adjustment
 - **Multi-font** -- up to 4 fonts loaded simultaneously, batched draw calls
 - **GPU-agnostic core** -- backends for OpenGL 3.3, Raylib, and Vulkan
@@ -147,6 +149,8 @@ All text drawing, measurement, wrapping, and effects live in the core package. T
 | `begin(ctx)` | Reset quad counter for new frame |
 | `end(ctx)` | Finalize per-font quad ranges |
 | `draw_text(ctx, text, x, y, size, color)` | Draw a string at baseline position |
+| `draw_text_centered(ctx, text, x, y, size, color)` | Draw centered at x |
+| `draw_text_right(ctx, text, x, y, size, color)` | Draw right-aligned ending at x |
 | `draw_text_wrapped(ctx, text, x, y, size, max_width, color)` | Draw with word wrapping, returns total height |
 | `draw_icon(ctx, slot, x, y, size, color)` | Draw an SVG icon centered at position |
 | `measure_text(font, text, size)` | Returns pixel width and height |
@@ -188,6 +192,9 @@ All text drawing, measurement, wrapping, and effects live in the core package. T
 | `draw_text_on_wave(ctx, text, x, y, size, amplitude, wavelength, phase, color)` | Along sine wave |
 | `draw_text_shadow(ctx, text, x, y, size, color)` | Drop shadow beneath text |
 | `draw_text_outlined(ctx, text, x, y, size, color)` | Colored outline for readability over busy backgrounds |
+| `draw_text_fade(ctx, text, x, y, size, color, alpha)` | Alpha fade (floating damage, toasts) |
+| `draw_text_gradient(ctx, text, x, y, size, top, bottom)` | Per-character top-to-bottom color blend |
+| `draw_text_pulse(ctx, text, x, y, size, color, time)` | Per-character scale animation |
 | `draw_text_typewriter(ctx, text, x, y, size, color, time)` | Character-by-character reveal |
 
 ### OpenGL Backend (package slug_opengl)
@@ -197,6 +204,7 @@ All text drawing, measurement, wrapping, and effects live in the core package. T
 | `init(renderer)` | Compile shaders, create GL objects |
 | `load_font(renderer, slot, path)` | Load font + upload textures (all-in-one) |
 | `upload_font_textures(renderer, slot, pack)` | Upload pre-packed textures (advanced) |
+| `unload_font(renderer, slot)` | Free GPU textures + CPU data for hot-reloading |
 | `flush(renderer, width, height)` | Upload vertices, draw all font batches |
 | `destroy(renderer)` | Delete GL objects, free slug context |
 
@@ -210,6 +218,7 @@ Wraps the OpenGL backend. Handles GL function pointer loading and Raylib batch f
 | `ctx(renderer)` | Get pointer to slug context for draw calls |
 | `load_font(renderer, slot, path)` | Load font + upload textures (all-in-one) |
 | `upload_font_textures(renderer, slot, pack)` | Upload pre-packed textures (advanced) |
+| `unload_font(renderer, slot)` | Free GPU textures + CPU data for hot-reloading |
 | `flush(renderer, width, height)` | Flush Raylib batch + upload vertices + draw |
 | `destroy(renderer)` | Delete GL objects, free slug context |
 
@@ -220,6 +229,7 @@ Wraps the OpenGL backend. Handles GL function pointer loading and Raylib batch f
 | `init(renderer, window)` | Create Vulkan instance, device, pipeline, buffers |
 | `load_font(renderer, slot, path, name)` | Load font + upload textures + create descriptor set |
 | `upload_font_textures(renderer, slot, pack, name)` | Upload pre-packed textures (advanced, for SVG icons) |
+| `unload_font(renderer, slot)` | Free GPU textures + CPU data for hot-reloading |
 | `begin_frame(renderer)` | Wait for GPU, reset quad counter |
 | `end_frame(renderer)` | Finalize per-font quad ranges |
 | `use_font(renderer, slot)` | Switch active font slot |

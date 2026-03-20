@@ -85,6 +85,12 @@ flush :: proc(r: ^Renderer, width, height: i32) {
 	slug_gl.flush(&r.gl_renderer, width, height)
 }
 
+// Unload a font from a slot, releasing GPU textures and CPU glyph data.
+// The slot can be reused with load_font or upload_font_textures.
+unload_font :: proc(r: ^Renderer, slot: int) {
+	slug_gl.unload_font(&r.gl_renderer, slot)
+}
+
 // Destroy all GL resources and free the slug context.
 destroy :: proc(r: ^Renderer) {
 	slug_gl.destroy(&r.gl_renderer)
