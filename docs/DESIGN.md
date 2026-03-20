@@ -51,10 +51,11 @@ Context :: struct {
     font_loaded:     [MAX_FONT_SLOTS]bool,
     font_count:      int,
     active_font_idx: int,
+    shared_atlas:    bool,                   // set by fonts_process_shared()
     vertices:        [MAX_GLYPH_VERTICES]Vertex,
     quad_count:      u32,
-    font_quad_start: [MAX_FONT_SLOTS]u32,
-    font_quad_count: [MAX_FONT_SLOTS]u32,
+    font_quad_start: [MAX_FONT_SLOTS]u32,   // unused in shared_atlas mode
+    font_quad_count: [MAX_FONT_SLOTS]u32,   // unused in shared_atlas mode
 }
 ```
 
@@ -112,7 +113,7 @@ Curves within each band are sorted by their maximum extent in descending order (
 
 ## GPU Textures: Curve + Band
 
-Two textures per font, sampled with `texelFetch` (integer coordinates, no filtering):
+Two textures per font (or one shared pair with shared font atlases), sampled with `texelFetch` (integer coordinates, no filtering):
 
 ### Curve Texture (RGBA16F)
 
@@ -140,9 +141,23 @@ This is deliberately simple. A more sophisticated packer could use best-fit bin 
 
 ## Font Slot System
 
-The library supports up to 4 simultaneously loaded fonts (`MAX_FONT_SLOTS`). Each font gets its own pair of GPU textures.
+The library supports up to 4 simultaneously loaded fonts (`MAX_FONT_SLOTS`). Two texture modes are available:
 
-### The Contiguous Drawing Constraint
+### Shared Font Atlases (Recommended)
+
+`fonts_process_shared(ctx)` packs all registered fonts' glyphs into a single pair of curve/band textures. This is the recommended approach for multi-font setups because:
+
+1. **One draw call** — the backend binds one texture pair and draws all quads in one call
+2. **Free font interleaving** — `use_font()` has no switching restrictions; mix fonts freely
+3. **Fewer GPU resources** — 2 textures total instead of 2 per font
+
+This works because each glyph vertex already carries its own texture coordinates (`curve_tex_x/y`, `band_tex_x/y`). The shader doesn't care which font a glyph belongs to — it just looks up whatever coordinates the vertex says. So packing multiple fonts into one texture is transparent to the shader.
+
+When `shared_atlas` is true, `use_font()` simply switches which Font struct is used for metrics/glyph lookup. The per-font quad range tracking (`font_quad_start/count`) is unused.
+
+### Per-Font Textures (Legacy)
+
+Without shared atlases, each font gets its own texture pair. The backend issues one draw call per font, binding that font's textures. This requires contiguous drawing per font:
 
 ```odin
 // Correct: all font 0 draws, then all font 1 draws
@@ -151,12 +166,10 @@ slug.use_font(ctx, 1)
 slug.draw_text(ctx, "Font 1 text", ...)
 
 // WRONG: switching back to font 0 after font 1 has quads
-slug.use_font(ctx, 0)  // overwrites font 0's quad range!
+slug.use_font(ctx, 0)  // returns false, would corrupt batch layout
 ```
 
-Why this constraint? The backend issues one draw call per font (binding that font's textures). To batch efficiently, we record `(start_quad, quad_count)` per font. If you interleave fonts, the ranges overlap and the wrong textures get bound for some quads.
-
-We could remove this constraint by sorting quads by font or using multiple draw ranges per font, but the added complexity isn't worth it for the typical use case. Games and UIs almost always draw all text for one font, then switch.
+Why this constraint? To batch efficiently, we record `(start_quad, quad_count)` per font. If you interleave fonts, the ranges overlap and the wrong textures get bound for some quads. Shared atlases eliminate this problem entirely.
 
 ## Text Effects: Transform at the Vertex Level
 
@@ -239,4 +252,4 @@ Things that could be added without changing the core architecture:
 - **Dynamic glyph loading**: Load glyphs on demand instead of all-ASCII upfront. Needed for CJK/Unicode.
 - **Subpixel positioning**: Offset glyph quads by fractional pixels for LCD-quality spacing.
 - **Text shaping**: Integrate HarfBuzz for complex scripts (Arabic, Devanagari). Would replace the simple left-to-right layout in `draw_text`.
-- **Instanced rendering**: One draw call per glyph type instead of one quad per glyph instance. Reduces vertex data for repeated characters.
+- **Instanced rendering**: One draw call per glyph type instead of one quad per glyph instance. Reduces vertex data for repeated characters. Particularly impactful for text-heavy apps like roguelikes.

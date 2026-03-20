@@ -179,7 +179,8 @@ All text drawing, measurement, wrapping, and effects live in the core package. T
 | `font_load_range(font, first, last)` | Load all glyphs in a codepoint range |
 | `font_load_glyph(font, codepoint)` | Load a single glyph |
 | `font_get_kerning(font, left, right)` | Kerning adjustment between two glyphs |
-| `font_process(font)` | Process glyphs + pack textures |
+| `font_process(font)` | Process glyphs + pack textures (single font) |
+| `fonts_process_shared(ctx)` | Process all registered fonts + pack into shared atlas |
 | `register_font(ctx, slot, font)` | Register a loaded font into a context slot |
 | `svg_load_into_font(font, slot, path)` | Load SVG icon into glyph slot |
 | `unload_font(ctx, slot)` | Free a single font slot at runtime |
@@ -230,8 +231,10 @@ Inline color markup format: `{color_name:text}` or `{#rrggbb:text}`. Named color
 | Proc | Purpose |
 |------|---------|
 | `init(renderer)` | Compile shaders, create GL objects |
-| `load_font(renderer, slot, path)` | Load font + upload textures (all-in-one) |
-| `upload_font_textures(renderer, slot, pack)` | Upload pre-packed textures (advanced) |
+| `load_font(renderer, slot, path)` | Load font + upload per-font textures (all-in-one) |
+| `load_fonts_shared(renderer, paths)` | Load multiple fonts + pack into shared atlas (all-in-one) |
+| `upload_font_textures(renderer, slot, pack)` | Upload pre-packed per-font textures (advanced) |
+| `upload_shared_textures(renderer, pack)` | Upload shared atlas textures (advanced) |
 | `unload_font(renderer, slot)` | Free GPU textures + CPU data for hot-reloading |
 | `flush(renderer, width, height)` | Upload vertices, draw all font batches |
 | `destroy(renderer)` | Delete GL objects, free slug context |
@@ -244,8 +247,10 @@ Wraps the OpenGL backend. Handles GL function pointer loading and Raylib batch f
 |------|---------|
 | `init(renderer)` | Load GL function pointers + compile shaders (call after `rl.InitWindow`) |
 | `ctx(renderer)` | Get pointer to slug context for draw calls |
-| `load_font(renderer, slot, path)` | Load font + upload textures (all-in-one) |
-| `upload_font_textures(renderer, slot, pack)` | Upload pre-packed textures (advanced) |
+| `load_font(renderer, slot, path)` | Load font + upload per-font textures (all-in-one) |
+| `load_fonts_shared(renderer, paths)` | Load multiple fonts + pack into shared atlas (all-in-one) |
+| `upload_font_textures(renderer, slot, pack)` | Upload pre-packed per-font textures (advanced) |
+| `upload_shared_textures(renderer, pack)` | Upload shared atlas textures (advanced) |
 | `unload_font(renderer, slot)` | Free GPU textures + CPU data for hot-reloading |
 | `flush(renderer, width, height)` | Flush Raylib batch + upload vertices + draw |
 | `destroy(renderer)` | Delete GL objects, free slug context |
@@ -255,8 +260,10 @@ Wraps the OpenGL backend. Handles GL function pointer loading and Raylib batch f
 | Proc | Purpose |
 |------|---------|
 | `init(renderer, window)` | Create Vulkan instance, device, pipeline, buffers |
-| `load_font(renderer, slot, path, name)` | Load font + upload textures + create descriptor set |
-| `upload_font_textures(renderer, slot, pack, name)` | Upload pre-packed textures (advanced, for SVG icons) |
+| `load_font(renderer, slot, path, name)` | Load font + upload per-font textures + create descriptor set |
+| `load_fonts_shared(renderer, paths)` | Load multiple fonts + pack into shared atlas (all-in-one) |
+| `upload_font_textures(renderer, slot, pack, name)` | Upload pre-packed per-font textures (advanced, for SVG icons) |
+| `upload_shared_textures(renderer, pack)` | Upload shared atlas textures (advanced) |
 | `unload_font(renderer, slot)` | Free GPU textures + CPU data for hot-reloading |
 | `begin_frame(renderer)` | Wait for GPU, reset quad counter |
 | `end_frame(renderer)` | Finalize per-font quad ranges |
@@ -293,26 +300,49 @@ Each glyph is a screen-space quad (4 vertices, 80 bytes each):
 
 ### GPU Textures
 
-Two textures per font, sampled with `texelFetch` (integer coordinates):
+Two textures per font (or one shared pair with shared font atlases), sampled with `texelFetch` (integer coordinates):
 
 | Texture | Format | Contents |
 |---------|--------|----------|
 | Curve | `RGBA16F` | Bezier control points (2 texels per curve) |
 | Band | `RG16UI` | Band headers + curve index lists |
 
-### Font Slot Constraint
+### Shared Font Atlases (Recommended for Multi-Font)
 
-Draw all content for each font contiguously. You can't switch back to a font that already has quads -- the per-font quad ranges are recorded sequentially.
+Pack all fonts into a single pair of GPU textures. This gives you one texture bind, one draw call, and free font interleaving -- no restriction on `use_font` switching order.
+
+```odin
+// Load fonts and glyphs into context slots
+slug.register_font(ctx, 0, font_sans)
+slug.register_font(ctx, 1, font_serif)
+
+// Pack all fonts into one shared atlas
+pack := slug.fonts_process_shared(ctx)
+defer slug.pack_result_destroy(&pack)
+backend.upload_shared_textures(renderer, &pack)
+
+// Now you can freely interleave fonts:
+slug.draw_text(ctx, "Sans text", ...)
+slug.use_font(ctx, 1)
+slug.draw_text(ctx, "Serif text", ...)
+slug.use_font(ctx, 0)   // switching back is fine!
+slug.draw_text(ctx, "Sans again", ...)
+```
+
+All backends also provide `load_fonts_shared(renderer, paths)` as a one-liner convenience.
+
+### Per-Font Textures (Legacy)
+
+Without shared atlases, each font gets its own texture pair. Draw all content for each font contiguously -- you can't switch back to a font that already has quads.
 
 ```odin
 // Correct: all font 0, then font 1
 slug.draw_text(ctx, "Font 0 text", ...)
-slug.draw_text(ctx, "More font 0", ...)
 slug.use_font(ctx, 1)
 slug.draw_text(ctx, "Font 1 text", ...)
 
-// WRONG: switching back to font 0 after font 1 has quads
-slug.use_font(ctx, 0)  // This would overwrite font 0's quad range!
+// WRONG without shared atlas: switching back
+slug.use_font(ctx, 0)  // returns false
 ```
 
 ## SVG Icon Support
@@ -465,7 +495,7 @@ Built with **Claude Code** (Anthropic's Claude Opus). I provided direction, arch
 
 - [x] **Unicode support** -- glyph map keyed by `rune`, any codepoint loadable via `font_load_glyph`
 - [x] **Pixel snapping** -- `snap()` helper for pixel-grid alignment; subpixel positioning works naturally via Bezier evaluation
-- [ ] **Shared font atlases** -- pack multiple fonts into shared curve/band textures to cut texture binds
+- [x] **Shared font atlases** -- pack multiple fonts into shared curve/band textures to cut texture binds
 - [ ] **WebGPU backend** -- for browser-based Odin projects via wasm
 
 ### Long-term
