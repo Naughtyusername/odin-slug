@@ -13,6 +13,8 @@ Last updated: 2026-03-22
 - [x] Ellipsis truncation (`draw_text_truncated`)
 - [x] Underline / strikethrough (`draw_text_underlined`, `draw_text_strikethrough`)
 - [x] Font fallback chains (`font_set_fallback`, `get_glyph_fallback`)
+- [x] Per-character transform callback (`Glyph_Xform`, `draw_text_transformed`)
+- [x] Inline icons in rich text flow (`{icon:N}` markup tag)
 
 ---
 
@@ -78,6 +80,17 @@ Last updated: 2026-03-22
       `draw_text_grid(ctx, text, x, y, font_size, cell_w, cell_h, color)`. Fixed-width cells,
       each character centered. Primary use case: roguelike map tiles and stat columns.
 
+### Near-Term Backends
+- [ ] **#16 — Sokol backend** (`slug_sokol`)
+      Sokol GFX is a popular Odin/C cross-platform graphics layer. Good portability story.
+
+- [ ] **#17 — SDL3 GPU backend** (`slug_sdl3`)
+      SDL3's new GPU API. Pairs naturally with the existing Vulkan demo's SDL3 windowing.
+
+- [ ] **#18 — Karl2D backend** (`slug_karl2d`)
+      Karl Zylinski's pure-Odin 2D library (zero C deps). Primary target for the roguelike project.
+      Integration notes in `docs/KARL2D_INTEGRATION.md`. Has OpenGL, D3D11, and Metal backends.
+
 ### Later / Stretch Goals
 - [ ] **#14 — Message log widget**
       Scrollable, timestamped message list. Probably built on top of scroll.odin + Text_Style.
@@ -86,12 +99,6 @@ Last updated: 2026-03-22
 - [ ] **#15 — Tooltip system**
       Positioned text box that follows the mouse and auto-flips at screen edges. Needs hit testing
       (#8) to be useful.
-
-- [ ] **#16 — Sokol backend** (`slug_sokol`)
-      Thin wrapper over Sokol GFX for the Sokol ecosystem. Low priority until a user requests it.
-
-- [ ] **#17 — SDL3 GPU backend** (`slug_sdl3`)
-      SDL3's new GPU API (similar to WebGPU). Good target for portability. Low priority.
 
 - [ ] **#1 — Instanced rendering**
       Replace one-quad-per-glyph with GPU instancing. Big perf win for dense text. Requires

@@ -1,21 +1,30 @@
 package slug
 
 // ===================================================
-// Rich text — inline color and background markup.
+// Rich text — inline color, background, and icon markup.
 //
 // Foreground color:   {color_name:text} or {#rrggbb:text}
 // Background color:   {bg:color_name:text} or {bg:#rrggbb:text}
+// Inline icon:        {icon:N}  or  {icon:N:color}  or  {icon:N:#rrggbb}
 // Untagged text uses the default color passed to draw_rich_text.
 //
 // Supported named colors: red, green, blue, yellow, cyan, magenta,
 // orange, white, black, gray, light_gray, dark_gray.
+//
+// Icons are drawn at font_size, vertically centered on the text line,
+// and advance the pen by the icon's bbox width plus a small gap.
+// The icon glyph must be loaded into the active font (or its fallback chain)
+// via svg_load_into_font before drawing. Conventional slots: 128 and above.
 //
 // Examples:
 //   "You deal {red:15} damage!"
 //   "Found a {yellow:Golden Sword} in the chest."
 //   "{#ff8800:Warning:} low health!"
 //   "Status: {bg:red:POISONED}"
-//   "{bg:#003300:{green:STEALTH}}"   -- bg + fg on same text (bg tag wraps fg tag — not nesting)
+//   "{bg:#003300:{green:STEALTH}}"          -- bg + fg on same text (bg tag wraps fg tag — not nesting)
+//   "You found a {icon:128} Sword!"         -- inline icon in default color
+//   "You found a {icon:128:yellow} Sword!"  -- inline icon tinted yellow
+//   "HP {icon:129:#ff4444} 42"              -- inline icon tinted via hex
 //   "Plain text with no markup works too."
 //
 // Nesting is NOT supported. Braces inside tagged text are literal.
@@ -53,6 +62,27 @@ draw_rich_text :: proc(
 				w, _ := measure_text(font, "{", font_size, use_kerning)
 				pen_x += w
 				i += 2
+				continue
+			}
+
+			// Try to parse {icon:N} or {icon:N:color} — inline SVG icon at glyph slot N
+			icon_slot, icon_color, icon_color_set, icon_end, icon_ok := parse_icon_tag(text, i)
+			if icon_ok {
+				g := get_glyph_fallback(ctx, rune(icon_slot))
+				if g != nil && len(g.curves) > 0 {
+					icon_w := (g.bbox_max.x - g.bbox_min.x) * font_size
+					icon_h := (g.bbox_max.y - g.bbox_min.y) * font_size
+					// Center icon vertically on the text line
+					line_mid_y := y - (font.ascent + font.descent) * font_size * 0.5
+					glyph_x := pen_x
+					glyph_y := line_mid_y - icon_h * 0.5
+					draw_color := icon_color if icon_color_set else default_color
+					if ctx.quad_count < MAX_GLYPH_QUADS {
+						emit_glyph_quad(ctx, g, glyph_x, glyph_y, icon_w, icon_h, draw_color)
+					}
+					pen_x += icon_w + font_size * 0.1 // small gap after icon
+				}
+				i = icon_end
 				continue
 			}
 
@@ -118,6 +148,16 @@ measure_rich_text :: proc(
 				continue
 			}
 
+			icon_slot, _, _, icon_end, icon_ok := parse_icon_tag(text, i)
+			if icon_ok {
+				g := get_glyph(font, rune(icon_slot))
+				if g != nil {
+					pen_x += (g.bbox_max.x - g.bbox_min.x) * font_size + font_size * 0.1
+				}
+				i = icon_end
+				continue
+			}
+
 			_, seg_text, end_pos, ok := parse_rich_tag(text, i)
 			if ok {
 				w, _ := measure_text(font, seg_text, font_size, use_kerning)
@@ -165,6 +205,12 @@ rich_text_plain_length :: proc(text: string) -> int {
 			if i + 1 < len(text) && text[i + 1] == '{' {
 				count += 1 // escaped brace = 1 char
 				i += 2
+				continue
+			}
+			_, _, _, icon_end, icon_ok := parse_icon_tag(text, i)
+			if icon_ok {
+				count += 1 // icon counts as one character in plain-text terms
+				i = icon_end
 				continue
 			}
 			_, seg_text, end_pos, ok := parse_rich_tag(text, i)
@@ -319,6 +365,59 @@ resolve_color_name :: proc(name: string) -> (Color, bool) {
 	}
 
 	return {}, false
+}
+
+// Parse an {icon:N} or {icon:N:color} tag starting at `start`.
+// N is a non-negative integer glyph slot (conventionally 128+).
+// The optional third segment accepts the same color names and hex codes
+// as foreground/background tags (e.g. {icon:128:red}, {icon:128:#ff8800}).
+// If no color is specified, color_set is false and the caller uses default_color.
+// Returns false if the tag is malformed or N contains non-digit characters.
+@(private = "file")
+parse_icon_tag :: proc(text: string, start: int) -> (slot: int, color: Color, color_set: bool, end_pos: int, ok: bool) {
+	if start >= len(text) || text[start] != '{' do return 0, {}, false, start, false
+
+	prefix :: "{icon:"
+	if start + len(prefix) > len(text) do return 0, {}, false, start, false
+	if text[start:start + len(prefix)] != prefix do return 0, {}, false, start, false
+
+	close := -1
+	for j := start + len(prefix); j < len(text); j += 1 {
+		if text[j] == '}' {
+			close = j
+			break
+		}
+	}
+	if close < 0 do return 0, {}, false, start, false
+
+	inner := text[start + len(prefix):close]
+	if len(inner) == 0 do return 0, {}, false, start, false
+
+	// Split on optional colon: "128" or "128:red" or "128:#ff8800"
+	colon := -1
+	for j in 0 ..< len(inner) {
+		if inner[j] == ':' {
+			colon = j
+			break
+		}
+	}
+
+	num_str := inner if colon < 0 else inner[:colon]
+	n := 0
+	for c in num_str {
+		if c < '0' || c > '9' do return 0, {}, false, start, false
+		n = n * 10 + int(c - '0')
+	}
+
+	if colon >= 0 {
+		color_name := inner[colon + 1:]
+		resolved, resolved_ok := resolve_color_name(color_name)
+		if resolved_ok {
+			return n, resolved, true, close + 1, true
+		}
+	}
+
+	return n, {}, false, close + 1, true
 }
 
 // Parse a 2-character hex string to a byte value (0-255).

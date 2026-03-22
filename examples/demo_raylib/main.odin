@@ -382,7 +382,7 @@ main :: proc() {
 		)
 
 		// Rich text markup
-		slug.draw_rich_text(ctx, "You deal {red:15} damage with {yellow:Golden Sword}!", LEFT_X, ROW_RICH_TEXT, BODY_SIZE, COLOR_WHITE)
+		slug.draw_rich_text(ctx, "You deal {red:15} dmg with {icon:128:yellow}{yellow:Golden Sword}!", LEFT_X, ROW_RICH_TEXT, BODY_SIZE, COLOR_WHITE)
 
 		// Unicode characters (Latin-1 Supplement)
 		slug.draw_text(ctx, "Héros: épée, château, naïve, über, señor", LEFT_X, ROW_UNICODE, SMALL_SIZE, {0.7, 0.7, 0.9, 1.0})
