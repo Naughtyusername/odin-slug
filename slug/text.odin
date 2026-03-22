@@ -487,6 +487,51 @@ draw_text_highlighted :: proc(
 	draw_text(ctx, text, x, y, font_size, text_color, use_kerning)
 }
 
+// Draw text with an underline at the standard typographic position.
+// The underline sits ~10% of the em-square below the baseline, with a
+// thickness of ~5% of the em-square (minimum 1px, snapped to nearest pixel
+// for crispness). The decoration color matches the text color.
+//
+// Example:
+//   slug.draw_text_underlined(ctx, "Visit our wiki", x, y, size, slug.CYAN)
+draw_text_underlined :: proc(
+	ctx: ^Context,
+	text: string,
+	x, y: f32,
+	font_size: f32,
+	color: Color,
+	use_kerning: bool = true,
+) {
+	font := active_font(ctx)
+	w, _      := measure_text(font, text, font_size, use_kerning)
+	thickness := max(math.round(font_size * 0.05), 1.0)
+	line_y    := y + font_size * 0.1
+	draw_rect(ctx, x, line_y, w, thickness, color)
+	draw_text(ctx, text, x, y, font_size, color, use_kerning)
+}
+
+// Draw text with a horizontal strikethrough at mid-height.
+// The line sits ~30% of the em-square above the baseline (roughly the
+// x-height midpoint), with the same thickness as draw_text_underlined.
+//
+// Example:
+//   slug.draw_text_strikethrough(ctx, "Old price: 500g", x, y, size, slug.RED)
+draw_text_strikethrough :: proc(
+	ctx: ^Context,
+	text: string,
+	x, y: f32,
+	font_size: f32,
+	color: Color,
+	use_kerning: bool = true,
+) {
+	font := active_font(ctx)
+	w, _      := measure_text(font, text, font_size, use_kerning)
+	thickness := max(math.round(font_size * 0.05), 1.0)
+	line_y    := y - font_size * 0.3
+	draw_rect(ctx, x, line_y, w, thickness, color)
+	draw_text(ctx, text, x, y, font_size, color, use_kerning)
+}
+
 // Helper: return the background rect dimensions for a text string.
 // Use this when you need to position the rect yourself (e.g. with padding):
 //   rx, ry, rw, rh := slug.text_bg_rect(font, text, x, y, size)

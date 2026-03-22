@@ -76,17 +76,20 @@ FLOAT_X :: f32(310)          // floating damage number: different x, same row as
 FLOAT_Y :: f32(355)
 
 // Panel box (rainbow / wobble / cached), lower left
+ROW_DECORATION :: f32(403)  // underlined + strikethrough side by side
+
+// Panel box (rainbow / wobble / cached), lower left
 PANEL_X   :: 40
-PANEL_Y   :: 408
+PANEL_Y   :: 435
 PANEL_W   :: 310
 PANEL_H   :: 190
 PANEL_PAD :: f32(15)  // inner margin from panel left edge to text
 
-PANEL_RAINBOW_Y :: f32(PANEL_Y + 50)   // 458
-PANEL_WOBBLE_Y  :: f32(PANEL_Y + 95)   // 503
-PANEL_CACHED_Y  :: f32(PANEL_Y + 140)  // 548
+PANEL_RAINBOW_Y :: f32(PANEL_Y + 50)   // 485
+PANEL_WOBBLE_Y  :: f32(PANEL_Y + 95)   // 530
+PANEL_CACHED_Y  :: f32(PANEL_Y + 140)  // 575
 
-SERIF_LINE_Y :: f32(PANEL_Y + PANEL_H + 25)  // 623
+SERIF_LINE_Y :: f32(PANEL_Y + PANEL_H + 25)  // 650
 
 // ---- Center column (x=420..760): animated effects ----
 
@@ -361,6 +364,10 @@ main :: proc() {
 		slug.use_font(ctx, 1)
 		slug.draw_text(ctx, "This line uses Liberation Serif (font slot 1)", LEFT_X, ROW_SERIF, SMALL_SIZE, {0.9, 0.8, 0.6, 1.0})
 		slug.use_font(ctx, 0)
+
+		// Underline and strikethrough decorations
+		slug.draw_text_underlined(ctx, "Underlined", LEFT_X, ROW_DECORATION, SMALL_SIZE, COLOR_WHITE)
+		slug.draw_text_strikethrough(ctx, "Struck-out", LEFT_X + 160, ROW_DECORATION, SMALL_SIZE, COLOR_YELLOW)
 
 		// Cursor positioning demo
 		font := slug.active_font(ctx)
