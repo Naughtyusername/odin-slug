@@ -52,7 +52,7 @@ draw_text_rainbow :: proc(
 	prev_rune: rune = 0
 
 	for ch in text {
-		g := get_glyph(font, ch)
+		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
 			continue
@@ -101,7 +101,7 @@ draw_text_wobble :: proc(
 	prev_rune: rune = 0
 
 	for ch in text {
-		g := get_glyph(font, ch)
+		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
 			continue
@@ -146,7 +146,7 @@ draw_text_shake :: proc(
 	prev_rune: rune = 0
 
 	for ch in text {
-		g := get_glyph(font, ch)
+		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
 			continue
@@ -202,7 +202,7 @@ draw_text_rotated :: proc(
 	prev_rune: rune = 0
 
 	for ch in text {
-		g := get_glyph(font, ch)
+		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
 			continue
@@ -246,7 +246,7 @@ draw_text_on_circle :: proc(
 	prev_rune: rune = 0
 
 	for ch in text {
-		g := get_glyph(font, ch)
+		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
 			continue
@@ -301,7 +301,7 @@ draw_text_on_wave :: proc(
 	prev_rune: rune = 0
 
 	for ch in text {
-		g := get_glyph(font, ch)
+		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
 			continue
@@ -440,7 +440,7 @@ draw_text_gradient :: proc(
 	prev_rune: rune = 0
 
 	for ch in text {
-		g := get_glyph(font, ch)
+		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
 			continue
@@ -493,7 +493,7 @@ draw_text_pulse :: proc(
 	prev_rune: rune = 0
 
 	for ch in text {
-		g := get_glyph(font, ch)
+		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
 			continue

@@ -123,6 +123,8 @@ ALIGN_Y0 :: f32(62)    // left-aligned
 ALIGN_Y1 :: f32(87)    // centered
 ALIGN_Y2 :: f32(112)   // right-aligned
 
+FALLBACK_Y :: f32(155) // fallback chain demo (sans + auto-serif for missing codepoints)
+
 WRAP_W   :: f32(420)
 WRAP_Y   :: f32(365)
 WRAP_PAD :: f32(8)
@@ -198,7 +200,14 @@ main :: proc() {
 			return
 		}
 		slug.font_load_ascii(&font1)
+		slug.font_load_range(&font1, 256, 383) // Latin Extended-A (Ş, ž, Ő, ę, ĺ, etc.)
 		slug.register_font(ctx, 1, font1)
+
+		// Font 0 falls back to font 1 for any codepoint not in its loaded range.
+		// Characters like Ş ž Ő are absent from font 0 but present in font 1 (serif),
+		// so they render in serif automatically when drawn with font 0 active.
+		// Requires shared_atlas — enforced by using fonts_process_shared below.
+		slug.font_set_fallback(ctx, 0, 1)
 
 		// Pack all fonts into a shared atlas — one texture pair for everything
 		pack := slug.fonts_process_shared(ctx)
@@ -471,6 +480,10 @@ main :: proc() {
 		slug.draw_text(ctx, "Left-aligned", ALIGN_X, ALIGN_Y0, SMALL_SIZE, {0.8, 0.6, 0.6, 1.0})
 		slug.draw_text_centered(ctx, "Centered", ALIGN_X, ALIGN_Y1, SMALL_SIZE, {0.6, 0.6, 0.8, 1.0})
 		slug.draw_text_right(ctx, "Right-aligned", ALIGN_X, ALIGN_Y2, SMALL_SIZE, {0.6, 0.8, 0.6, 1.0})
+
+		// Fallback chain demo: font 0 lacks Latin Extended-A (256-383), font 1 has it.
+		// Drawing with font 0 active: ASCII renders sans-serif, Ş ž Ő render in serif.
+		slug.draw_text(ctx, "Fallback: Ş ž Ő ę ĺ (font 0 → serif)", RIGHT_X, FALLBACK_Y, SMALL_SIZE, {0.7, 0.9, 0.7, 1.0})
 
 		// Word wrap
 		slug.draw_text_wrapped(ctx, WRAP_TEXT, RIGHT_X + WRAP_PAD, WRAP_Y + WRAP_PAD, SMALL_SIZE, WRAP_W - WRAP_PAD * 2, COLOR_WHITE)

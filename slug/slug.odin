@@ -177,6 +177,12 @@ Context :: struct {
 	font_loaded:     [MAX_FONT_SLOTS]bool,
 	font_count:      int,
 
+	// Per-slot fallback font index. -1 means no fallback.
+	// When get_glyph_fallback can't find a glyph in slot N, it looks
+	// in font_fallback[N], then font_fallback[font_fallback[N]], etc.
+	// Only followed in shared_atlas mode (see get_glyph_fallback).
+	font_fallback:   [MAX_FONT_SLOTS]int,
+
 	// Active font for drawing
 	active_font_idx: int,
 
@@ -261,10 +267,58 @@ register_font :: proc(ctx: ^Context, slot: int, font: Font) -> bool {
 	if slot < 0 || slot >= MAX_FONT_SLOTS do return false
 	ctx.fonts[slot] = font
 	ctx.font_loaded[slot] = true
+	ctx.font_fallback[slot] = -1
 	if slot >= ctx.font_count {
 		ctx.font_count = slot + 1
 	}
 	return true
+}
+
+// Set the fallback font for a given slot.
+// When drawing with font_slot active, any glyph missing from that font
+// will be looked up in fallback_slot instead. Chains are supported:
+// if fallback_slot also lacks the glyph, its own fallback is tried in turn.
+//
+// Requires shared atlas (fonts_process_shared). In per-font atlas mode the
+// fallback slot is registered but silently ignored during rendering, because
+// glyphs from different font textures cannot be mixed in the same draw call.
+//
+// Call after register_font and before fonts_process_shared / font_process.
+// Returns false if either slot is invalid or unloaded.
+font_set_fallback :: proc(ctx: ^Context, font_slot, fallback_slot: int) -> bool {
+	if font_slot < 0 || font_slot >= MAX_FONT_SLOTS do return false
+	if fallback_slot < 0 || fallback_slot >= MAX_FONT_SLOTS do return false
+	if !ctx.font_loaded[font_slot] do return false
+	if !ctx.font_loaded[fallback_slot] do return false
+	ctx.font_fallback[font_slot] = fallback_slot
+	return true
+}
+
+// Look up a glyph, following the fallback chain when a codepoint is missing.
+//
+// In shared_atlas mode: walks font_fallback[] until the glyph is found or
+// the chain ends. The returned glyph may belong to a different font slot than
+// the active one, but because all fonts share the same atlas texture the
+// texture coordinates are always valid.
+//
+// In per-font mode: only searches the active font, same as get_glyph().
+// Fallback is skipped to avoid emitting quads with coordinates from a
+// different font's texture while the active font's texture is bound.
+@(private = "package")
+get_glyph_fallback :: proc(ctx: ^Context, ch: rune) -> ^Glyph_Data {
+	slot := ctx.active_font_idx
+	for _ in 0 ..< MAX_FONT_SLOTS {
+		if slot < 0 || slot >= MAX_FONT_SLOTS do break
+		if !ctx.font_loaded[slot] do break
+		g := get_glyph(&ctx.fonts[slot], ch)
+		if g != nil do return g
+		// In per-font mode don't cross texture boundaries.
+		if !ctx.shared_atlas do break
+		next := ctx.font_fallback[slot]
+		if next < 0 do break
+		slot = next
+	}
+	return nil
 }
 
 // Get pointer to the currently active font.

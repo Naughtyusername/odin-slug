@@ -168,7 +168,7 @@ draw_text :: proc(
 	prev_rune: rune = 0
 
 	for ch in text {
-		g := get_glyph(font, ch)
+		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
 			continue
@@ -267,7 +267,7 @@ draw_text_truncated :: proc(
 	byte_end := 0
 
 	for ch, i in text {
-		g := get_glyph(font, ch)
+		g := get_glyph_fallback(ctx, ch)
 		kern: f32 = 0
 		if g != nil && use_kerning && prev_rune != 0 {
 			kern = font_get_kerning(font, prev_rune, ch) * font_size
