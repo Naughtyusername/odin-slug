@@ -283,12 +283,10 @@ main :: proc() {
 		if rl.IsKeyPressed(.RIGHT) && cursor_idx < len(cursor_text) do cursor_idx += 1
 
 		// Click-to-position cursor
-		CURSOR_HIT_HEIGHT :: f32(24)
 		if rl.IsMouseButtonPressed(.LEFT) {
-			if mouse_y >= ROW_CURSOR - CURSOR_HIT_HEIGHT && mouse_y <= ROW_CURSOR + 4 &&
-			   mouse_x >= LEFT_X {
-				cursor_font := slug.active_font(ctx)
-				cursor_idx = slug.index_from_x(cursor_font, cursor_text, SMALL_SIZE, mouse_x - LEFT_X)
+			cursor_font := slug.active_font(ctx)
+			if idx, hit := slug.text_hit_test(cursor_font, cursor_text, LEFT_X, ROW_CURSOR, SMALL_SIZE, mouse_x, mouse_y); hit {
+				cursor_idx = idx
 			}
 		}
 

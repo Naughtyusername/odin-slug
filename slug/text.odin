@@ -152,6 +152,37 @@ index_from_x :: proc(
 	return i // past the end
 }
 
+// Test whether a screen point falls within a rendered text string.
+// Returns the nearest rune index and true when the point hits the text's
+// bounding rect; returns 0, false otherwise.
+//
+// The bounding rect spans x to x+text_width horizontally, and
+// y-ascent*font_size to y-descent*font_size vertically (the full line height).
+// index follows the same convention as index_from_x: 0 = before the first
+// character, len(runes) = after the last character.
+//
+// Typical use — click-to-position a cursor:
+//   if idx, hit := slug.text_hit_test(font, text, x, y, size, mouse_x, mouse_y); hit {
+//       cursor_idx = idx
+//   }
+text_hit_test :: proc(
+	font: ^Font,
+	text: string,
+	x, y: f32,
+	font_size: f32,
+	mouse_x, mouse_y: f32,
+	use_kerning: bool = true,
+) -> (index: int, hit: bool) {
+	top    := y - font.ascent  * font_size
+	bottom := y - font.descent * font_size
+	if mouse_y < top || mouse_y > bottom do return 0, false
+
+	w, _ := measure_text(font, text, font_size, use_kerning)
+	if mouse_x < x || mouse_x > x + w do return 0, false
+
+	return index_from_x(font, text, font_size, mouse_x - x, use_kerning), true
+}
+
 // Draw a string of text at the given position and size.
 // x, y is the baseline-left position. font_size is the em-square height in pixels.
 draw_text :: proc(

@@ -301,13 +301,11 @@ main :: proc() {
 		if glfw.GetKey(window, glfw.KEY_RIGHT) == glfw.PRESS && cursor_idx < len(cursor_text) do cursor_idx += 1
 
 		// Click-to-position cursor
-		CURSOR_HIT_HEIGHT :: f32(24)
 		current_mouse_btn := glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT)
 		if current_mouse_btn == glfw.PRESS && prev_mouse_btn == glfw.RELEASE {
-			if mouse_y >= ROW_CURSOR - CURSOR_HIT_HEIGHT && mouse_y <= ROW_CURSOR + 4 &&
-			   mouse_x >= LEFT_X {
-				cursor_font := slug.active_font(ctx)
-				cursor_idx = slug.index_from_x(cursor_font, cursor_text, SMALL_SIZE, mouse_x - LEFT_X)
+			cursor_font := slug.active_font(ctx)
+			if idx, hit := slug.text_hit_test(cursor_font, cursor_text, LEFT_X, ROW_CURSOR, SMALL_SIZE, mouse_x, mouse_y); hit {
+				cursor_idx = idx
 			}
 		}
 		prev_mouse_btn = current_mouse_btn

@@ -284,13 +284,11 @@ main :: proc() {
 					slug.scroll_by(&scroll_region, -event.wheel.y * 20.0, scroll_content_h)
 				}
 			case .MOUSE_BUTTON_DOWN:
-				CURSOR_HIT_HEIGHT :: f32(24)
 				mx, my: f32
 				_ = sdl.GetMouseState(&mx, &my)
-				if my >= ROW_CURSOR - CURSOR_HIT_HEIGHT && my <= ROW_CURSOR + 4 &&
-				   mx >= LEFT_X {
-					cursor_font := slug.active_font(ctx)
-					cursor_idx = slug.index_from_x(cursor_font, cursor_text, SMALL_SIZE, mx - LEFT_X)
+				cursor_font := slug.active_font(ctx)
+				if idx, hit := slug.text_hit_test(cursor_font, cursor_text, LEFT_X, ROW_CURSOR, SMALL_SIZE, mx, my); hit {
+					cursor_idx = idx
 				}
 			case .WINDOW_RESIZED:
 				renderer.framebuffer_resized = true
