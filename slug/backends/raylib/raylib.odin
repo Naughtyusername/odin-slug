@@ -90,12 +90,13 @@ load_fonts_shared :: proc(r: ^Renderer, paths: []string) -> bool {
 	return slug_gl.load_fonts_shared(&r.gl_renderer, paths)
 }
 
-// Flush Raylib's internal draw batch, then upload slug
-// vertices and issue draw calls for all font batches.
+// Flush Raylib's internal draw batch, then upload slug vertices and issue draw calls.
+// scissor restricts rendering to a screen-space rectangle; zero value = full screen.
+// Safe to call multiple times per frame with different scissors.
 // Call this between slug.end() and any post-slug Raylib drawing.
-flush :: proc(r: ^Renderer, width, height: i32) {
+flush :: proc(r: ^Renderer, width, height: i32, scissor: slug.Scissor_Rect = {}) {
 	rlgl.DrawRenderBatchActive()
-	slug_gl.flush(&r.gl_renderer, width, height)
+	slug_gl.flush(&r.gl_renderer, width, height, scissor)
 }
 
 // Unload a font from a slot, releasing GPU textures and CPU glyph data.

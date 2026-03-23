@@ -3,7 +3,7 @@
 Tracks both the feature roadmap and polish/cleanup work.
 Update after each session.
 
-Last updated: 2026-03-22 (session 2)
+Last updated: 2026-03-22 (session 4)
 
 ---
 
@@ -18,6 +18,8 @@ Last updated: 2026-03-22 (session 2)
 - [x] Hit testing (`text_hit_test`)
 - [x] Named styles / `Text_Style` struct (`draw_text_styled`, `measure_text_styled`)
 - [x] Justified alignment (`draw_text_justified`)
+- [x] Subscript / superscript (`draw_text_sub`, `draw_text_super`, `SUB_SCALE/SHIFT/SUPER_SHIFT` constants)
+- [x] GPU scissor clipping (`Scissor_Rect`, optional `scissor` param on `flush` / `present_frame`; multi-pass per frame)
 
 ---
 
@@ -49,14 +51,6 @@ Last updated: 2026-03-22 (session 2)
 *(nothing)*
 
 ### Up Next
-- [ ] **#11 — Subscript / superscript** *(implemented, pending review)*
-      `draw_text_sub` / `draw_text_super`: draw at ~60% size, shifted down/up by ~35%/40% of
-      the em-square. Useful for math notation, footnotes, chemical formulas.
-
-- [ ] **#12 — GPU scissor clipping**
-      Backend-level scissor rect passed to flush. Cleaner than the current scroll region approach
-      for arbitrary clipped panels. Needs backend changes in all three renderers.
-
 - [ ] **#13 — Grid rendering mode (CP437)**
       `draw_text_grid(ctx, text, x, y, font_size, cell_w, cell_h, color)`. Fixed-width cells,
       each character centered. Primary use case: roguelike map tiles and stat columns.
@@ -69,13 +63,16 @@ Last updated: 2026-03-22 (session 2)
 ### Near-Term Backends
 - [ ] **#16 — Sokol backend** (`slug_sokol`)
       Sokol GFX is a popular Odin/C cross-platform graphics layer. Good portability story.
+      Needs `flush(scissor)` support via `sg_apply_scissor_rect`.
 
 - [ ] **#17 — SDL3 GPU backend** (`slug_sdl3`)
       SDL3's new GPU API. Pairs naturally with the existing Vulkan demo's SDL3 windowing.
+      Needs `flush(scissor)` support via `sdl.GPUSetScissor`.
 
 - [ ] **#18 — Karl2D backend** (`slug_karl2d`)
       Karl Zylinski's pure-Odin 2D library (zero C deps). Primary target for the roguelike project.
       Integration notes in `docs/KARL2D_INTEGRATION.md`. Has OpenGL, D3D11, and Metal backends.
+      Needs `flush(scissor)` support via the underlying GL/D3D11/Metal scissor APIs.
 
 ### Later / Stretch Goals
 - [ ] **#14 — Message log widget**

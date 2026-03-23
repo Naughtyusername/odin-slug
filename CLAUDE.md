@@ -46,7 +46,7 @@ Always run all four `odin check` commands + build all 3 demos before committing.
 | Font loading, glyph metrics, kerning | `slug/ttf.odin` |
 | Core types, constants, `Context` struct | `slug/slug.odin` |
 | OpenGL backend (rect pipeline, flush) | `slug/backends/opengl/opengl.odin` |
-| Vulkan backend (pipelines, draw_frame) | `slug/backends/vulkan/renderer.odin` |
+| Vulkan backend (pipelines, flush, present_frame) | `slug/backends/vulkan/renderer.odin` |
 | Raylib backend (thin wrapper over GL) | `slug/backends/raylib/raylib.odin` |
 | GLSL shaders (OpenGL 3.30) | `slug/shaders/*.330.*` |
 | GLSL shaders (Vulkan 4.50) | `slug/shaders/*.450.*` |
@@ -108,7 +108,8 @@ The demos use a named position table at the top of each `main.odin`. Every coord
 - `SCALE_Y = 700` is the bottom anchor; verify `SERIF_LINE_Y` stays below 680 after any shift
 
 **Right column layout notes:**
-- Elements stack: ZOOM_Y(200) → TRUNCATE_Y(255) → GRID_Y(310) → ALIGN(62..112) → WRAP_Y(365) → SCROLL_Y(510) → SCALE_Y(700)
+- Elements stack: ZOOM_Y(240) → TRUNCATE_Y(295) → GRID_Y(350) → ALIGN(62..112) → WRAP_Y(410) → SCROLL_Y(510) → CLIP_BOX_Y(643) → SCALE_Y(700)
+- CLIP_BOX_Y(643): GPU scissor demo — 200×40px box, text baseline at CLIP_TEXT_Y(670). Box bottom = 683.
 - New right-column items go between ZOOM_Y and GRID_Y (most space) or between GRID and WRAP
 
 ## Architecture Gotchas — Hard-Won Lessons

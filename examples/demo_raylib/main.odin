@@ -25,34 +25,34 @@ import slug_rl "../../slug/backends/raylib"
 
 // --- Window ---
 
-WINDOW_TITLE  :: "odin-slug + Raylib"
-WINDOW_WIDTH  :: 1600
+WINDOW_TITLE :: "odin-slug + Raylib"
+WINDOW_WIDTH :: 1600
 WINDOW_HEIGHT :: 900
-TARGET_FPS    :: 60
+TARGET_FPS :: 60
 
 // --- Font paths ---
 
-FONT_PATH      :: "examples/assets/fonts/LiberationSans-Regular.ttf"
+FONT_PATH :: "examples/assets/fonts/LiberationSans-Regular.ttf"
 FONT_SERIF_PATH :: "examples/assets/fonts/LiberationSerif-Regular.ttf"
 
 // --- SVG icon glyph slots ---
 
-ICON_SWORD  :: 128
-ICON_HEART  :: 129
+ICON_SWORD :: 128
+ICON_HEART :: 129
 ICON_SHIELD :: 130
 ICON_CIRCLE :: 131
 
-ICON_SWORD_PATH  :: "examples/assets/icons/sword.svg"
-ICON_HEART_PATH  :: "examples/assets/icons/heart.svg"
+ICON_SWORD_PATH :: "examples/assets/icons/sword.svg"
+ICON_HEART_PATH :: "examples/assets/icons/heart.svg"
 ICON_SHIELD_PATH :: "examples/assets/icons/shield.svg"
 ICON_CIRCLE_PATH :: "examples/assets/icons/circle.svg"
 
 // --- Text sizes ---
 
 TITLE_SIZE :: f32(42)
-BODY_SIZE  :: f32(28)
+BODY_SIZE :: f32(28)
 SMALL_SIZE :: f32(20)
-ICON_SIZE  :: f32(36)
+ICON_SIZE :: f32(36)
 
 // =============================================================
 // Position table — every layout coordinate in one named place.
@@ -63,96 +63,117 @@ ICON_SIZE  :: f32(36)
 
 LEFT_X :: f32(40)
 
-ROW_TITLE       :: f32(60)   // title, TITLE_SIZE, drop shadow
-ROW_SUBTITLE    :: f32(115)  // subtitle, BODY_SIZE, outlined
-ROW_RICH_TEXT   :: f32(175)  // rich text markup
-ROW_UNICODE     :: f32(218)  // unicode characters
-ROW_HIGHLIGHT   :: f32(263)  // highlighted text + status row
-ROW_SERIF       :: f32(310)  // multi-font serif line
-ROW_CURSOR      :: f32(355)  // cursor demo text (size SMALL_SIZE)
-ROW_CURSOR_HINT :: f32(378)  // "[</>] or click  idx:N" (size 14)
+ROW_TITLE :: f32(60) // title, TITLE_SIZE, drop shadow
+ROW_SUBTITLE :: f32(115) // subtitle, BODY_SIZE, outlined
+ROW_RICH_TEXT :: f32(175) // rich text markup
+ROW_UNICODE :: f32(218) // unicode characters
+ROW_HIGHLIGHT :: f32(263) // highlighted text + status row
+ROW_SERIF :: f32(310) // multi-font serif line
+ROW_CURSOR :: f32(355) // cursor demo text (size SMALL_SIZE)
+ROW_CURSOR_HINT :: f32(378) // "[</>] or click  idx:N" (size 14)
 
-FLOAT_X :: f32(310)          // floating damage number: different x, same row as cursor
+FLOAT_X :: f32(310) // floating damage number: different x, same row as cursor
 FLOAT_Y :: f32(355)
 
 // Panel box (rainbow / wobble / cached), lower left
-ROW_DECORATION :: f32(403)  // underlined + strikethrough side by side
+ROW_DECORATION :: f32(403) // underlined + strikethrough side by side
 
 // Panel box (rainbow / wobble / cached), lower left
-PANEL_X   :: 40
-PANEL_Y   :: 435
-PANEL_W   :: 310
-PANEL_H   :: 190
-PANEL_PAD :: f32(15)  // inner margin from panel left edge to text
+PANEL_X :: 40
+PANEL_Y :: 435
+PANEL_W :: 310
+PANEL_H :: 190
+PANEL_PAD :: f32(15) // inner margin from panel left edge to text
 
-PANEL_RAINBOW_Y :: f32(PANEL_Y + 50)   // 485
-PANEL_WOBBLE_Y  :: f32(PANEL_Y + 95)   // 530
-PANEL_CACHED_Y  :: f32(PANEL_Y + 140)  // 575
+PANEL_RAINBOW_Y :: f32(PANEL_Y + 50) // 485
+PANEL_WOBBLE_Y :: f32(PANEL_Y + 95) // 530
+PANEL_CACHED_Y :: f32(PANEL_Y + 140) // 575
 
-SERIF_LINE_Y :: f32(PANEL_Y + PANEL_H + 25)  // 650
+SERIF_LINE_Y :: f32(PANEL_Y + PANEL_H + 25) // 650
 
 // ---- Center column (x=420..760): animated effects ----
 
-ICONS_X     :: f32(420)  // first icon x
-ICONS_Y     :: f32(80)   // icon baseline
-ICON_STRIDE :: f32(50)   // x step between icons
+ICONS_X :: f32(420) // first icon x
+ICONS_Y :: f32(80) // icon baseline
+ICON_STRIDE :: f32(50) // x step between icons
 
-FX_X          :: f32(420)  // animated effect text left edge
+FX_X :: f32(420) // animated effect text left edge
 FX_GRADIENT_Y :: f32(145)
-FX_PULSE_Y    :: f32(193)
-FX_FADE_Y     :: f32(241)
-FX_XFORM_Y    :: f32(290)  // per-character transform callback demo
-FX_SUBSUP_Y   :: f32(338)  // subscript / superscript inline demo
+FX_PULSE_Y :: f32(193)
+FX_FADE_Y :: f32(241)
+FX_XFORM_Y :: f32(290) // per-character transform callback demo
+FX_SUBSUP_Y :: f32(338) // subscript / superscript inline demo
 
 // Circle (background shape + orbital text + rotated text)
-CIRCLE_CX :: 560   // untyped: used as i32 for rl.DrawCircle, f32 for slug
+CIRCLE_CX :: 560 // untyped: used as i32 for rl.DrawCircle, f32 for slug
 CIRCLE_CY :: 460
-CIRCLE_R  :: 80
+CIRCLE_R :: 80
 
 // ---- Right column (x=800..1240): structural demos ----
 
 RIGHT_X :: f32(800)
 
-ZOOM_Y :: f32(240)  // pulsing-size "Zoom!" text — shifted down so ascenders don't hit fallback/justify
+ZOOM_Y :: f32(240) // pulsing-size "Zoom!" text — shifted down so ascenders don't hit fallback/justify
 
-TRUNCATE_Y     :: f32(295)  // truncated text demo
-TRUNCATE_MAX_W :: f32(240)  // clip boundary in pixels
+TRUNCATE_Y :: f32(295) // truncated text demo
+TRUNCATE_MAX_W :: f32(240) // clip boundary in pixels
 
-GRID_Y :: f32(350)  // monospace grid demo
+GRID_Y :: f32(350) // monospace grid demo
 
-ALIGN_X  :: f32(1050)  // x anchor for all three alignment variants
-ALIGN_Y0 :: f32(62)    // left-aligned
-ALIGN_Y1 :: f32(87)    // centered
-ALIGN_Y2 :: f32(112)   // right-aligned
+ALIGN_X :: f32(1050) // x anchor for all three alignment variants
+ALIGN_Y0 :: f32(62) // left-aligned
+ALIGN_Y1 :: f32(87) // centered
+ALIGN_Y2 :: f32(112) // right-aligned
 
 FALLBACK_Y :: f32(137) // fallback chain demo (sans + auto-serif for missing codepoints)
 
-JUSTIFY_Y :: f32(160)  // justified alignment demo
-JUSTIFY_W :: f32(380)  // column width — text expands to fill this exactly
+JUSTIFY_Y :: f32(160) // justified alignment demo
+JUSTIFY_W :: f32(380) // column width — text expands to fill this exactly
 
-WRAP_W   :: f32(420)
-WRAP_Y   :: f32(410)
+WRAP_W :: f32(420)
+WRAP_Y :: f32(410)
 WRAP_PAD :: f32(8)
 
 SCROLL_W :: f32(420)
 SCROLL_Y :: f32(510)
 SCROLL_H :: f32(100)
 
+// GPU scissor clipping demo — right column, below scroll region
+CLIP_LABEL_Y :: f32(625) // "GPU scissor:" label
+CLIP_BOX_X :: RIGHT_X // aligns with right column
+CLIP_BOX_Y :: f32(643) // top of the scissored viewport
+CLIP_BOX_W :: f32(200) // intentionally narrow — text overflows without scissor
+CLIP_BOX_H :: f32(40) // one line tall
+CLIP_TEXT_Y :: CLIP_BOX_Y + 27 // text baseline centered inside box
+
 SCALE_Y :: f32(700)
 
 // --- Colors ---
 
-COLOR_WHITE  :: [4]f32{1.0, 1.0, 1.0, 1.0}
+COLOR_WHITE :: [4]f32{1.0, 1.0, 1.0, 1.0}
 COLOR_YELLOW :: [4]f32{1.0, 0.9, 0.3, 1.0}
-COLOR_CYAN   :: [4]f32{0.3, 0.9, 1.0, 1.0}
+COLOR_CYAN :: [4]f32{0.3, 0.9, 1.0, 1.0}
 
 // --- Named text styles ---
 // Compile-time constants — bundle font, size, color, and decorations together.
 // Pass to draw_text_styled for clean, consistent call sites.
 
-STYLE_UNDERLINE    :: slug.Text_Style{size = SMALL_SIZE, color = COLOR_WHITE,  underline = true}
-STYLE_STRIKE       :: slug.Text_Style{size = SMALL_SIZE, color = COLOR_YELLOW, strikethrough = true}
-STYLE_BOTH         :: slug.Text_Style{size = SMALL_SIZE, color = COLOR_CYAN,   underline = true, strikethrough = true}
+STYLE_UNDERLINE :: slug.Text_Style {
+	size      = SMALL_SIZE,
+	color     = COLOR_WHITE,
+	underline = true,
+}
+STYLE_STRIKE :: slug.Text_Style {
+	size          = SMALL_SIZE,
+	color         = COLOR_YELLOW,
+	strikethrough = true,
+}
+STYLE_BOTH :: slug.Text_Style {
+	size          = SMALL_SIZE,
+	color         = COLOR_CYAN,
+	underline     = true,
+	strikethrough = true,
+}
 
 // --- Per-character transform callback demo ---
 // Demonstrates draw_text_transformed: each glyph bobs on a sine wave and
@@ -163,16 +184,18 @@ Wave_Hue_State :: struct {
 	time: f32,
 }
 
-wave_hue_xform :: proc(char_idx: int, ch: rune, pen_x, y: f32, userdata: rawptr) -> slug.Glyph_Xform {
+wave_hue_xform :: proc(
+	char_idx: int,
+	ch: rune,
+	pen_x, y: f32,
+	userdata: rawptr,
+) -> slug.Glyph_Xform {
 	state := (^Wave_Hue_State)(userdata)
 	phase := f32(char_idx) * 0.7
-	bob   := math.sin(state.time * 4.0 + phase) * 7.0
-	hue   := math.mod(state.time * 90.0 + f32(char_idx) * 35.0, 360.0)
-	rgb   := slug.hsv_to_rgb(hue, 0.85, 1.0)
-	return slug.Glyph_Xform{
-		offset = {0, -bob},
-		color  = {rgb.x, rgb.y, rgb.z, 1.0},
-	}
+	bob := math.sin(state.time * 4.0 + phase) * 7.0
+	hue := math.mod(state.time * 90.0 + f32(char_idx) * 35.0, 360.0)
+	rgb := slug.hsv_to_rgb(hue, 0.85, 1.0)
+	return slug.Glyph_Xform{offset = {0, -bob}, color = {rgb.x, rgb.y, rgb.z, 1.0}}
 }
 
 main :: proc() {
@@ -256,7 +279,14 @@ main :: proc() {
 	// We need begin() active to emit quads into the vertex buffer.
 	// cache_text() saves and restores quad_count internally.
 	slug.begin(ctx)
-	cached_label := slug.cache_text(ctx, "Crisp at any size (cached)", LEFT_X + PANEL_PAD, PANEL_CACHED_Y, SMALL_SIZE, COLOR_YELLOW)
+	cached_label := slug.cache_text(
+		ctx,
+		"Crisp at any size (cached)",
+		LEFT_X + PANEL_PAD,
+		PANEL_CACHED_Y,
+		SMALL_SIZE,
+		COLOR_YELLOW,
+	)
 	defer slug.cache_destroy(&cached_label)
 
 	// -----------------------------------------------
@@ -273,39 +303,54 @@ main :: proc() {
 
 	// Cursor demo state
 	cursor_text := "Click to position cursor"
-	cursor_idx  := 0
+	cursor_idx := 0
 
 	// -----------------------------------------------
 	// 6. Main game loop
 	// -----------------------------------------------
 
 	for !rl.WindowShouldClose() {
-		elapsed   := f32(rl.GetTime())
-		screen_w  := rl.GetScreenWidth()
-		screen_h  := rl.GetScreenHeight()
-		mouse_x   := f32(rl.GetMouseX())
-		mouse_y   := f32(rl.GetMouseY())
+		elapsed := f32(rl.GetTime())
+		screen_w := rl.GetScreenWidth()
+		screen_h := rl.GetScreenHeight()
+		mouse_x := f32(rl.GetMouseX())
+		mouse_y := f32(rl.GetMouseY())
 
 		// UI scale
-		if rl.IsKeyPressed(.UP)   do slug.set_ui_scale(ctx, ctx.ui_scale + 0.25)
+		if rl.IsKeyPressed(.UP) do slug.set_ui_scale(ctx, ctx.ui_scale + 0.25)
 		if rl.IsKeyPressed(.DOWN) do slug.set_ui_scale(ctx, ctx.ui_scale - 0.25)
 
 		// Cursor keyboard movement
-		if rl.IsKeyPressed(.LEFT)  && cursor_idx > 0               do cursor_idx -= 1
+		if rl.IsKeyPressed(.LEFT) && cursor_idx > 0 do cursor_idx -= 1
 		if rl.IsKeyPressed(.RIGHT) && cursor_idx < len(cursor_text) do cursor_idx += 1
 
 		// Click-to-position cursor
 		if rl.IsMouseButtonPressed(.LEFT) {
 			cursor_font := slug.active_font(ctx)
-			if idx, hit := slug.text_hit_test(cursor_font, cursor_text, LEFT_X, ROW_CURSOR, SMALL_SIZE, mouse_x, mouse_y); hit {
+			if idx, hit := slug.text_hit_test(
+				cursor_font,
+				cursor_text,
+				LEFT_X,
+				ROW_CURSOR,
+				SMALL_SIZE,
+				mouse_x,
+				mouse_y,
+			); hit {
 				cursor_idx = idx
 			}
 		}
 
 		// Scroll region: mouse wheel when hovering
-		scroll_content_h := slug.measure_text_wrapped(ctx, SCROLL_TEXT, SMALL_SIZE, scroll_region.width)
-		if mouse_x >= scroll_region.x && mouse_x <= scroll_region.x + scroll_region.width &&
-		   mouse_y >= scroll_region.y && mouse_y <= scroll_region.y + scroll_region.height {
+		scroll_content_h := slug.measure_text_wrapped(
+			ctx,
+			SCROLL_TEXT,
+			SMALL_SIZE,
+			scroll_region.width,
+		)
+		if mouse_x >= scroll_region.x &&
+		   mouse_x <= scroll_region.x + scroll_region.width &&
+		   mouse_y >= scroll_region.y &&
+		   mouse_y <= scroll_region.y + scroll_region.height {
 			wheel := rl.GetMouseWheelMove()
 			if wheel != 0 {
 				slug.scroll_by(&scroll_region, -wheel * 20.0, scroll_content_h)
@@ -334,24 +379,70 @@ main :: proc() {
 		rl.DrawRectangleGradientH(40, 655, 370, 20, rl.DARKBLUE, rl.SKYBLUE)
 
 		// Alignment guide line
-		rl.DrawLine(i32(ALIGN_X), i32(ALIGN_Y0) - 10, i32(ALIGN_X), i32(ALIGN_Y2) + 15, rl.Color{80, 80, 80, 255})
+		rl.DrawLine(
+			i32(ALIGN_X),
+			i32(ALIGN_Y0) - 10,
+			i32(ALIGN_X),
+			i32(ALIGN_Y2) + 15,
+			rl.Color{80, 80, 80, 255},
+		)
 
 		// Word-wrap box outline (adapts to text height)
 		WRAP_TEXT :: "The ancient scroll reads: You have defeated the Skeleton King and earned 250 gold. Your sword glows with newfound power."
 		text_h := slug.measure_text_wrapped(ctx, WRAP_TEXT, SMALL_SIZE, WRAP_W - WRAP_PAD * 2)
-		rl.DrawRectangleLines(i32(RIGHT_X), i32(WRAP_Y), i32(WRAP_W), i32(text_h) + i32(WRAP_PAD) * 2, rl.Color{80, 80, 120, 255})
+		rl.DrawRectangleLines(
+			i32(RIGHT_X),
+			i32(WRAP_Y),
+			i32(WRAP_W),
+			i32(text_h) + i32(WRAP_PAD) * 2,
+			rl.Color{80, 80, 120, 255},
+		)
 
 		// Scroll region background
-		rl.DrawRectangle(i32(scroll_region.x), i32(scroll_region.y), i32(scroll_region.width), i32(scroll_region.height), rl.Color{30, 30, 50, 255})
-		rl.DrawRectangleLines(i32(scroll_region.x), i32(scroll_region.y), i32(scroll_region.width), i32(scroll_region.height), rl.Color{80, 80, 120, 255})
+		rl.DrawRectangle(
+			i32(scroll_region.x),
+			i32(scroll_region.y),
+			i32(scroll_region.width),
+			i32(scroll_region.height),
+			rl.Color{30, 30, 50, 255},
+		)
+		rl.DrawRectangleLines(
+			i32(scroll_region.x),
+			i32(scroll_region.y),
+			i32(scroll_region.width),
+			i32(scroll_region.height),
+			rl.Color{80, 80, 120, 255},
+		)
 
 		// Scrollbar thumb
-		frac  := slug.scroll_fraction(&scroll_region, scroll_content_h)
-		vis   := slug.scroll_visible_fraction(&scroll_region, scroll_content_h)
+		frac := slug.scroll_fraction(&scroll_region, scroll_content_h)
+		vis := slug.scroll_visible_fraction(&scroll_region, scroll_content_h)
 		thumb_h := i32(scroll_region.height * vis)
 		if thumb_h < 10 do thumb_h = 10
 		thumb_y := i32(scroll_region.y + frac * (scroll_region.height - f32(thumb_h)))
-		rl.DrawRectangle(i32(scroll_region.x + scroll_region.width - 4), thumb_y, 4, thumb_h, rl.Color{100, 100, 160, 200})
+		rl.DrawRectangle(
+			i32(scroll_region.x + scroll_region.width - 4),
+			thumb_y,
+			4,
+			thumb_h,
+			rl.Color{100, 100, 160, 200},
+		)
+
+		// GPU scissor demo box outline — drawn with Raylib (unclipped)
+		rl.DrawRectangle(
+			i32(CLIP_BOX_X),
+			i32(CLIP_BOX_Y),
+			i32(CLIP_BOX_W),
+			i32(CLIP_BOX_H),
+			rl.Color{20, 36, 56, 255},
+		)
+		rl.DrawRectangleLines(
+			i32(CLIP_BOX_X),
+			i32(CLIP_BOX_Y),
+			i32(CLIP_BOX_W),
+			i32(CLIP_BOX_H),
+			rl.Color{80, 100, 150, 255},
+		)
 
 		// Raylib's built-in text (for comparison — bitmap-based, blurry at large sizes)
 		rl.DrawText("Raylib built-in text (bitmap)", 500, 680, 18, rl.GRAY)
@@ -388,28 +479,64 @@ main :: proc() {
 			slug.scaled_size(ctx, BODY_SIZE),
 			COLOR_CYAN,
 			outline_thickness = 2.5,
-			outline_color     = {0.8, 0.2, 0.8, 1.0},
+			outline_color = {0.8, 0.2, 0.8, 1.0},
 		)
 
 		// Rich text markup
-		slug.draw_rich_text(ctx, "You deal {red:15} dmg with {icon:128:yellow}{yellow:Golden Sword}!", LEFT_X, ROW_RICH_TEXT, BODY_SIZE, COLOR_WHITE)
+		slug.draw_rich_text(
+			ctx,
+			"You deal {red:15} dmg with {icon:128:yellow}{yellow:Golden Sword}!",
+			LEFT_X,
+			ROW_RICH_TEXT,
+			BODY_SIZE,
+			COLOR_WHITE,
+		)
 
 		// Unicode characters (Latin-1 Supplement)
-		slug.draw_text(ctx, "Héros: épée, château, naïve, über, señor", LEFT_X, ROW_UNICODE, SMALL_SIZE, {0.7, 0.7, 0.9, 1.0})
+		slug.draw_text(
+			ctx,
+			"Héros: épée, château, naïve, über, señor",
+			LEFT_X,
+			ROW_UNICODE,
+			SMALL_SIZE,
+			{0.7, 0.7, 0.9, 1.0},
+		)
 
 		// Highlighted text + {bg:} status tags
-		slug.draw_text_highlighted(ctx, "SELECTED", LEFT_X, ROW_HIGHLIGHT, BODY_SIZE, slug.BLACK, {0.3, 0.6, 1.0, 1.0})
-		slug.draw_rich_text(ctx, "  Status: {bg:red:POISONED}  {bg:green:HASTE}  {bg:#884400:BURNING}", LEFT_X + 130, ROW_HIGHLIGHT, BODY_SIZE, COLOR_WHITE)
+		slug.draw_text_highlighted(
+			ctx,
+			"SELECTED",
+			LEFT_X,
+			ROW_HIGHLIGHT,
+			BODY_SIZE,
+			slug.BLACK,
+			{0.3, 0.6, 1.0, 1.0},
+		)
+		slug.draw_rich_text(
+			ctx,
+			"  Status: {bg:red:POISONED}  {bg:green:HASTE}  {bg:#884400:BURNING}",
+			LEFT_X + 130,
+			ROW_HIGHLIGHT,
+			BODY_SIZE,
+			COLOR_WHITE,
+		)
 
 		// Multi-font: switch to serif for one line
 		slug.use_font(ctx, 1)
-		slug.draw_text(ctx, "This line uses Liberation Serif (font slot 1)", LEFT_X, ROW_SERIF, SMALL_SIZE, {0.9, 0.8, 0.6, 1.0})
+		slug.draw_text(
+			ctx,
+			"This line uses Liberation Serif (font slot 1)",
+			LEFT_X,
+			ROW_SERIF,
+			SMALL_SIZE,
+			{0.9, 0.8, 0.6, 1.0},
+		)
 		slug.use_font(ctx, 0)
 
 		// Text_Style demo: underline, strikethrough, and both simultaneously
-		slug.draw_text_styled(ctx, "Underlined", LEFT_X,       ROW_DECORATION, STYLE_UNDERLINE)
+		slug.draw_text_styled(ctx, "Underlined", LEFT_X, ROW_DECORATION, STYLE_UNDERLINE)
 		slug.draw_text_styled(ctx, "Struck-out", LEFT_X + 155, ROW_DECORATION, STYLE_STRIKE)
-		slug.draw_text_styled(ctx, "Both",       LEFT_X + 268, ROW_DECORATION, STYLE_BOTH)
+		slug.draw_text_styled(ctx, "Both", LEFT_X + 268, ROW_DECORATION, STYLE_BOTH)
 
 		// Cursor positioning demo
 		font := slug.active_font(ctx)
@@ -418,13 +545,35 @@ main :: proc() {
 		// Blinking cursor line (drawn with Raylib so it appears above slug text)
 		if int(elapsed * 2) % 2 == 0 {
 			cx := i32(LEFT_X + cursor_px)
-			rl.DrawLine(cx, i32(ROW_CURSOR) - 18, cx, i32(ROW_CURSOR) + 4, rl.Color{200, 255, 200, 255})
+			rl.DrawLine(
+				cx,
+				i32(ROW_CURSOR) - 18,
+				cx,
+				i32(ROW_CURSOR) + 4,
+				rl.Color{200, 255, 200, 255},
+			)
 		}
-		slug.draw_text(ctx, fmt.tprintf("[</>] or click  idx:%d", cursor_idx), LEFT_X, ROW_CURSOR_HINT, 14, {0.5, 0.5, 0.5, 1.0})
+		slug.draw_text(
+			ctx,
+			fmt.tprintf("[</>] or click  idx:%d", cursor_idx),
+			LEFT_X,
+			ROW_CURSOR_HINT,
+			14,
+			{0.5, 0.5, 0.5, 1.0},
+		)
 
 		// Floating damage number (loops every 1.5s)
 		float_age := math.mod(elapsed, 1.5)
-		slug.draw_text_float(ctx, "-15", FLOAT_X, FLOAT_Y, BODY_SIZE, {1.0, 0.3, 0.3, 1.0}, float_age, duration = 1.5)
+		slug.draw_text_float(
+			ctx,
+			"-15",
+			FLOAT_X,
+			FLOAT_Y,
+			BODY_SIZE,
+			{1.0, 0.3, 0.3, 1.0},
+			float_age,
+			duration = 1.5,
+		)
 
 		// Panel contents: rainbow, wobble, cached
 		slug.draw_text_rainbow(
@@ -441,41 +590,109 @@ main :: proc() {
 			LEFT_X + PANEL_PAD,
 			PANEL_WOBBLE_Y,
 			BODY_SIZE,
-			time      = elapsed,
+			time = elapsed,
 			amplitude = 5.0,
 		)
 		slug.draw_cached(ctx, &cached_label)
 
 		// Serif font demo line (below panel)
 		slug.use_font(ctx, 1)
-		slug.draw_text(ctx, "Multi-font: Liberation Serif (slot 1)", LEFT_X, SERIF_LINE_Y, SMALL_SIZE, {0.9, 0.8, 0.6, 1.0})
+		slug.draw_text(
+			ctx,
+			"Multi-font: Liberation Serif (slot 1)",
+			LEFT_X,
+			SERIF_LINE_Y,
+			SMALL_SIZE,
+			{0.9, 0.8, 0.6, 1.0},
+		)
 		slug.use_font(ctx, 0)
 
 		// ---- Center column ----
 
 		// SVG icons (rendered through the same GPU pipeline as text)
-		slug.draw_icon(ctx, ICON_SWORD,  ICONS_X,                ICONS_Y, ICON_SIZE, COLOR_YELLOW)
-		slug.draw_icon(ctx, ICON_HEART,  ICONS_X + ICON_STRIDE,  ICONS_Y, ICON_SIZE, {1.0, 0.3, 0.3, 1.0})
-		slug.draw_icon(ctx, ICON_SHIELD, ICONS_X + ICON_STRIDE*2, ICONS_Y, ICON_SIZE, {0.3, 0.8, 0.4, 1.0})
-		slug.draw_icon(ctx, ICON_CIRCLE, ICONS_X + ICON_STRIDE*3, ICONS_Y, ICON_SIZE, {0.5, 0.5, 1.0, 1.0})
-		slug.draw_text(ctx, "SVG icons!", ICONS_X + ICON_STRIDE*4 + 2, ICONS_Y - 10, SMALL_SIZE, COLOR_WHITE)
+		slug.draw_icon(ctx, ICON_SWORD, ICONS_X, ICONS_Y, ICON_SIZE, COLOR_YELLOW)
+		slug.draw_icon(
+			ctx,
+			ICON_HEART,
+			ICONS_X + ICON_STRIDE,
+			ICONS_Y,
+			ICON_SIZE,
+			{1.0, 0.3, 0.3, 1.0},
+		)
+		slug.draw_icon(
+			ctx,
+			ICON_SHIELD,
+			ICONS_X + ICON_STRIDE * 2,
+			ICONS_Y,
+			ICON_SIZE,
+			{0.3, 0.8, 0.4, 1.0},
+		)
+		slug.draw_icon(
+			ctx,
+			ICON_CIRCLE,
+			ICONS_X + ICON_STRIDE * 3,
+			ICONS_Y,
+			ICON_SIZE,
+			{0.5, 0.5, 1.0, 1.0},
+		)
+		slug.draw_text(
+			ctx,
+			"SVG icons!",
+			ICONS_X + ICON_STRIDE * 4 + 2,
+			ICONS_Y - 10,
+			SMALL_SIZE,
+			COLOR_WHITE,
+		)
 
 		// Gradient, pulse, fade effects
-		slug.draw_text_gradient(ctx, "Gradient text!", FX_X, FX_GRADIENT_Y, BODY_SIZE, {1.0, 0.8, 0.2, 1.0}, {1.0, 0.2, 0.4, 1.0})
-		slug.draw_text_pulse(ctx, "Pulsing!", FX_X, FX_PULSE_Y, BODY_SIZE, COLOR_CYAN, time = elapsed)
+		slug.draw_text_gradient(
+			ctx,
+			"Gradient text!",
+			FX_X,
+			FX_GRADIENT_Y,
+			BODY_SIZE,
+			{1.0, 0.8, 0.2, 1.0},
+			{1.0, 0.2, 0.4, 1.0},
+		)
+		slug.draw_text_pulse(
+			ctx,
+			"Pulsing!",
+			FX_X,
+			FX_PULSE_Y,
+			BODY_SIZE,
+			COLOR_CYAN,
+			time = elapsed,
+		)
 		fade_alpha := (math.sin(elapsed * 2.0) + 1.0) * 0.5
-		slug.draw_text_fade(ctx, "Fading in and out...", FX_X, FX_FADE_Y, SMALL_SIZE, COLOR_WHITE, fade_alpha)
+		slug.draw_text_fade(
+			ctx,
+			"Fading in and out...",
+			FX_X,
+			FX_FADE_Y,
+			SMALL_SIZE,
+			COLOR_WHITE,
+			fade_alpha,
+		)
 
 		// Per-character transform callback: wave + hue shift
 		wave_state := Wave_Hue_State{elapsed}
-		slug.draw_text_transformed(ctx, "Custom callback!", FX_X, FX_XFORM_Y, BODY_SIZE, COLOR_WHITE, wave_hue_xform, &wave_state)
+		slug.draw_text_transformed(
+			ctx,
+			"Custom callback!",
+			FX_X,
+			FX_XFORM_Y,
+			BODY_SIZE,
+			COLOR_WHITE,
+			wave_hue_xform,
+			&wave_state,
+		)
 
 		// Subscript / superscript inline demo: "H₂O  x²"
 		{
 			font := slug.active_font(ctx)
 			px := FX_X
 
-			hw, _  := slug.measure_text(font, "H", SMALL_SIZE)
+			hw, _ := slug.measure_text(font, "H", SMALL_SIZE)
 			slug.draw_text(ctx, "H", px, FX_SUBSUP_Y, SMALL_SIZE, COLOR_WHITE)
 			px += hw
 
@@ -502,8 +719,8 @@ main :: proc() {
 			f32(CIRCLE_CY),
 			f32(CIRCLE_R + 20),
 			start_angle = -elapsed * 0.4,
-			font_size   = SMALL_SIZE,
-			color       = {0.8, 0.5, 1.0, 1.0},
+			font_size = SMALL_SIZE,
+			color = {0.8, 0.5, 1.0, 1.0},
 		)
 		slug.draw_text_rotated(
 			ctx,
@@ -523,44 +740,142 @@ main :: proc() {
 
 		// Truncated text: long string clipped at TRUNCATE_MAX_W with "..."
 		// The clip boundary is visualized with a Raylib line.
-		rl.DrawLine(i32(RIGHT_X + 10 + TRUNCATE_MAX_W), i32(TRUNCATE_Y) - 18, i32(RIGHT_X + 10 + TRUNCATE_MAX_W), i32(TRUNCATE_Y) + 4, rl.Color{80, 80, 80, 255})
+		rl.DrawLine(
+			i32(RIGHT_X + 10 + TRUNCATE_MAX_W),
+			i32(TRUNCATE_Y) - 18,
+			i32(RIGHT_X + 10 + TRUNCATE_MAX_W),
+			i32(TRUNCATE_Y) + 4,
+			rl.Color{80, 80, 80, 255},
+		)
 		slug.draw_text(ctx, "clip:", RIGHT_X + 10, TRUNCATE_Y - 18, 12, {0.4, 0.4, 0.5, 1.0})
-		slug.draw_text_truncated(ctx, "This long name gets clipped with an ellipsis", RIGHT_X + 10, TRUNCATE_Y, SMALL_SIZE, TRUNCATE_MAX_W, COLOR_WHITE)
+		slug.draw_text_truncated(
+			ctx,
+			"This long name gets clipped with an ellipsis",
+			RIGHT_X + 10,
+			TRUNCATE_Y,
+			SMALL_SIZE,
+			TRUNCATE_MAX_W,
+			COLOR_WHITE,
+		)
 
 		// Monospace grid: each char centered in a fixed-width cell
-		cell_w    := slug.mono_width(font, SMALL_SIZE)
+		cell_w := slug.mono_width(font, SMALL_SIZE)
 		grid_text := "GRID"
 		for ch, i in grid_text {
-			ch_w   := slug.char_advance(font, ch, SMALL_SIZE)
+			ch_w := slug.char_advance(font, ch, SMALL_SIZE)
 			char_x := RIGHT_X + f32(i) * cell_w + (cell_w - ch_w) * 0.5
 			slug.draw_text(ctx, grid_text[i:][:1], char_x, GRID_Y, SMALL_SIZE, COLOR_CYAN)
 		}
-		slug.draw_text(ctx, fmt.tprintf("cell: %.1fpx", cell_w), RIGHT_X, GRID_Y + 25, SMALL_SIZE, {0.5, 0.5, 0.5, 1.0})
+		slug.draw_text(
+			ctx,
+			fmt.tprintf("cell: %.1fpx", cell_w),
+			RIGHT_X,
+			GRID_Y + 25,
+			SMALL_SIZE,
+			{0.5, 0.5, 0.5, 1.0},
+		)
 
 		// Alignment demo: all three anchored to ALIGN_X
 		slug.draw_text(ctx, "Left-aligned", ALIGN_X, ALIGN_Y0, SMALL_SIZE, {0.8, 0.6, 0.6, 1.0})
-		slug.draw_text_centered(ctx, "Centered", ALIGN_X, ALIGN_Y1, SMALL_SIZE, {0.6, 0.6, 0.8, 1.0})
-		slug.draw_text_right(ctx, "Right-aligned", ALIGN_X, ALIGN_Y2, SMALL_SIZE, {0.6, 0.8, 0.6, 1.0})
+		slug.draw_text_centered(
+			ctx,
+			"Centered",
+			ALIGN_X,
+			ALIGN_Y1,
+			SMALL_SIZE,
+			{0.6, 0.6, 0.8, 1.0},
+		)
+		slug.draw_text_right(
+			ctx,
+			"Right-aligned",
+			ALIGN_X,
+			ALIGN_Y2,
+			SMALL_SIZE,
+			{0.6, 0.8, 0.6, 1.0},
+		)
 
 		// Fallback chain demo: font 0 lacks Latin Extended-A (256-383), font 1 has it.
 		// Drawing with font 0 active: ASCII renders sans-serif, Ş ž Ő render in serif.
-		slug.draw_text(ctx, "Fallback: Ş ž Ő ę ĺ (font 0 → serif)", RIGHT_X, FALLBACK_Y, SMALL_SIZE, {0.7, 0.9, 0.7, 1.0})
+		slug.draw_text(
+			ctx,
+			"Fallback: Ş ž Ő ę ĺ (font 0 → serif)",
+			RIGHT_X,
+			FALLBACK_Y,
+			SMALL_SIZE,
+			{0.7, 0.9, 0.7, 1.0},
+		)
 
 		// Justified alignment
-		slug.draw_text_justified(ctx, "Word justification fills the column width exactly.", RIGHT_X, JUSTIFY_Y, SMALL_SIZE, JUSTIFY_W, {0.9, 0.8, 0.6, 1.0})
+		slug.draw_text_justified(
+			ctx,
+			"Word justification fills the column width exactly.",
+			RIGHT_X,
+			JUSTIFY_Y,
+			SMALL_SIZE,
+			JUSTIFY_W,
+			{0.9, 0.8, 0.6, 1.0},
+		)
 
 		// Word wrap
-		slug.draw_text_wrapped(ctx, WRAP_TEXT, RIGHT_X + WRAP_PAD, WRAP_Y + WRAP_PAD, SMALL_SIZE, WRAP_W - WRAP_PAD * 2, COLOR_WHITE)
+		slug.draw_text_wrapped(
+			ctx,
+			WRAP_TEXT,
+			RIGHT_X + WRAP_PAD,
+			WRAP_Y + WRAP_PAD,
+			SMALL_SIZE,
+			WRAP_W - WRAP_PAD * 2,
+			COLOR_WHITE,
+		)
 
 		// Scrollable text region
 		slug.draw_text_scrolled(ctx, SCROLL_TEXT, &scroll_region, SMALL_SIZE, {0.8, 0.8, 0.9, 1.0})
-		slug.draw_text(ctx, "Scroll me! [wheel]", scroll_region.x, scroll_region.y - 18, 14, {0.5, 0.5, 0.7, 1.0})
+		slug.draw_text(
+			ctx,
+			"Scroll me! [wheel]",
+			scroll_region.x,
+			scroll_region.y - 18,
+			14,
+			{0.5, 0.5, 0.7, 1.0},
+		)
+
+		// Scissor demo label (unclipped — lives in the main pass)
+		slug.draw_text(ctx, "GPU scissor:", CLIP_BOX_X, CLIP_LABEL_Y, 13, {0.5, 0.5, 0.7, 1.0})
 
 		// Scale indicator
-		slug.draw_text(ctx, fmt.tprintf("Scale: %.2fx [Up/Down]", ctx.ui_scale), 10, SCALE_Y, 16, {0.5, 0.5, 0.5, 1.0})
+		slug.draw_text(
+			ctx,
+			fmt.tprintf("Scale: %.2fx [Up/Down]", ctx.ui_scale),
+			10,
+			SCALE_Y,
+			16,
+			{0.5, 0.5, 0.5, 1.0},
+		)
 
 		slug.end(ctx)
-		slug_rl.flush(renderer, screen_w, screen_h)
+		slug_rl.flush(renderer, screen_w, screen_h) // pass 1: all main content, no scissor
+
+		// Pass 2: clipped panel text — the GPU cuts anything outside the box
+		slug.begin(ctx)
+		slug.draw_text(
+			ctx,
+			"GPU-clipped panel text overflows →",
+			CLIP_BOX_X + 5,
+			CLIP_TEXT_Y,
+			SMALL_SIZE,
+			COLOR_WHITE,
+		)
+		slug.end(ctx)
+		slug_rl.flush(
+			renderer,
+			screen_w,
+			screen_h,
+			scissor = slug.Scissor_Rect {
+				x = CLIP_BOX_X,
+				y = CLIP_BOX_Y,
+				w = CLIP_BOX_W,
+				h = CLIP_BOX_H,
+			},
+		)
 
 		// FPS counter (Raylib, drawn on top)
 		rl.DrawFPS(WINDOW_WIDTH - 100, 10)

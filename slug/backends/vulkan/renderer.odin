@@ -99,6 +99,14 @@ Renderer :: struct {
 	in_flight_fences:      []vk.Fence,
 	current_frame:         u32,
 
+	// Per-frame state for multi-pass rendering
+	// Tracks how many vertices/rects each flush has consumed so that subsequent
+	// flushes write into the GPU buffer at the correct offset, allowing multiple
+	// independent batches (with different scissors) to coexist in one frame.
+	current_image_index:   u32, // swapchain image acquired this frame
+	vertex_batch_offset:   u32, // glyph vertices consumed by previous flushes
+	rect_batch_offset:     u32, // rect vertices consumed by previous flushes
+
 	// Resize tracking
 	framebuffer_resized:   bool,
 
@@ -112,8 +120,8 @@ Renderer :: struct {
 // --- Public API ---
 
 // SPIR-V bytecode embedded at compile time — no runtime file loading needed.
-VERT_SHADER_CODE      :: #load("slug_vert.spv")
-FRAG_SHADER_CODE      :: #load("slug_frag.spv")
+VERT_SHADER_CODE :: #load("slug_vert.spv")
+FRAG_SHADER_CODE :: #load("slug_frag.spv")
 RECT_VERT_SHADER_CODE :: #load("rect_vert.spv")
 RECT_FRAG_SHADER_CODE :: #load("rect_frag.spv")
 
@@ -291,7 +299,12 @@ load_font :: proc(r: ^Renderer, slot: int, path: string, name: string = "") -> b
 // Upload pre-packed font textures to the GPU and create the descriptor set.
 // Use this when you need the manual pipeline (e.g., loading SVG icons into
 // a font before processing). For simple cases, use load_font() instead.
-upload_font_textures :: proc(r: ^Renderer, slot: int, pack: ^slug.Texture_Pack_Result, name: string = "") -> bool {
+upload_font_textures :: proc(
+	r: ^Renderer,
+	slot: int,
+	pack: ^slug.Texture_Pack_Result,
+	name: string = "",
+) -> bool {
 	if slot < 0 || slot >= slug.MAX_FONT_SLOTS {
 		return false
 	}
@@ -484,8 +497,17 @@ load_fonts_shared :: proc(r: ^Renderer, paths: []string) -> bool {
 	return upload_shared_textures(r, &pack)
 }
 
-begin_frame :: proc(r: ^Renderer) {
-	// Wait for all in-flight frames before overwriting shared vertex buffer
+// Begin a new frame: wait for the GPU, acquire a swapchain image, open the
+// command buffer and render pass, set the viewport, and initialize slug.
+//
+// Returns false if image acquisition fails (e.g. swapchain out of date).
+// On false, the caller should skip the rest of the frame and continue the loop —
+// begin_frame will recover on the next call.
+//
+// After begin_frame, call flush() one or more times (with optional scissor rects)
+// to record draw calls, then call present_frame() to submit and display.
+begin_frame :: proc(r: ^Renderer) -> bool {
+	// Wait for all in-flight frames before overwriting the shared vertex buffer.
 	if r.device != nil && r.in_flight_fences != nil {
 		vk.WaitForFences(
 			r.device,
@@ -496,47 +518,31 @@ begin_frame :: proc(r: ^Renderer) {
 		)
 	}
 
-	slug.begin(&r.ctx)
-}
-
-end_frame :: proc(r: ^Renderer) {
-	slug.end(&r.ctx)
-}
-
-use_font :: proc(r: ^Renderer, slot: int) {
-	slug.use_font(&r.ctx, slot)
-}
-
-draw_frame :: proc(r: ^Renderer) -> bool {
-	// Copy CPU vertices to the persistently-mapped GPU buffer
-	vert_count := slug.vertex_count(&r.ctx)
-	if vert_count > 0 {
-		mem.copy(r.vertex_mapped, &r.ctx.vertices[0], int(vert_count) * size_of(slug.Vertex))
-	}
-
 	frame := r.current_frame
 
-	// Acquire next swapchain image
-	image_index: u32
+	// Acquire the next swapchain image.
 	acquire_result := vk.AcquireNextImageKHR(
 		r.device,
 		r.swapchain,
 		max(u64),
 		r.image_available[frame],
 		0,
-		&image_index,
+		&r.current_image_index,
 	)
 	if acquire_result == .ERROR_OUT_OF_DATE_KHR {
 		if !recreate_swapchain(r) do return false
-		return true
+		return false // caller should continue and retry on next iteration
 	}
-	if acquire_result != .SUCCESS && acquire_result != .SUBOPTIMAL_KHR {
-		return false
-	}
+	if acquire_result != .SUCCESS && acquire_result != .SUBOPTIMAL_KHR do return false
 
 	vk.ResetFences(r.device, 1, &r.in_flight_fences[frame])
 
-	cmd := r.command_buffers[image_index]
+	// Reset per-frame batch offsets.
+	r.vertex_batch_offset = 0
+	r.rect_batch_offset = 0
+
+	// Begin the command buffer for this frame.
+	cmd := r.command_buffers[r.current_image_index]
 	vk.ResetCommandBuffer(cmd, {})
 
 	begin_info := vk.CommandBufferBeginInfo {
@@ -544,22 +550,21 @@ draw_frame :: proc(r: ^Renderer) -> bool {
 	}
 	vk.BeginCommandBuffer(cmd, &begin_info)
 
-	// Begin render pass
+	// Begin the render pass. The clear color matches the demo background.
 	clear_color := vk.ClearValue{}
 	clear_color.color.float32 = {0.05, 0.05, 0.08, 1.0}
 
 	rp_begin := vk.RenderPassBeginInfo {
 		sType           = .RENDER_PASS_BEGIN_INFO,
 		renderPass      = r.render_pass,
-		framebuffer     = r.framebuffers[image_index],
+		framebuffer     = r.framebuffers[r.current_image_index],
 		renderArea      = {{0, 0}, r.swapchain_extent},
 		clearValueCount = 1,
 		pClearValues    = &clear_color,
 	}
-
 	vk.CmdBeginRenderPass(cmd, &rp_begin, .INLINE)
 
-	// Set viewport and scissor
+	// Set viewport once for the whole frame — scissor is set per-flush.
 	viewport := vk.Viewport {
 		x        = 0,
 		y        = 0,
@@ -570,30 +575,98 @@ draw_frame :: proc(r: ^Renderer) -> bool {
 	}
 	vk.CmdSetViewport(cmd, 0, 1, &viewport)
 
-	scissor := vk.Rect2D {
-		offset = {0, 0},
-		extent = r.swapchain_extent,
+	// Initialize the slug batch for the first pass.
+	slug.begin(&r.ctx)
+
+	return true
+}
+
+use_font :: proc(r: ^Renderer, slot: int) {
+	slug.use_font(&r.ctx, slot)
+}
+
+// Record draw calls for the current slug batch into the open command buffer.
+// scissor restricts this pass to a screen-space rectangle; zero value = full screen.
+// Can be called multiple times per frame with different scissor rects.
+//
+// Each call implicitly calls slug.end() for the current batch and slug.begin()
+// for the next — the caller does not need to call these manually.
+//
+// Must be called between begin_frame() and present_frame().
+flush :: proc(r: ^Renderer, scissor: slug.Scissor_Rect = {}) {
+	slug.end(&r.ctx)
+
+	cmd := r.command_buffers[r.current_image_index]
+	vert_count := slug.vertex_count(&r.ctx)
+	rect_vert_count := int(r.ctx.rect_count) * slug.VERTICES_PER_QUAD
+
+	// Copy this batch's CPU vertices into the GPU buffer at the current offset.
+	// vertex_batch_offset tracks how many vertices earlier flushes have already written,
+	// so batches are laid out sequentially: [batch0][batch1][batch2]...
+	if vert_count > 0 {
+		mem.copy(
+			&r.vertex_mapped[r.vertex_batch_offset],
+			&r.ctx.vertices[0],
+			int(vert_count) * size_of(slug.Vertex),
+		)
 	}
-	vk.CmdSetScissor(cmd, 0, 1, &scissor)
+	if rect_vert_count > 0 {
+		mem.copy(
+			&r.rect_vertex_mapped[r.rect_batch_offset],
+			&r.ctx.rect_vertices[0],
+			rect_vert_count * size_of(slug.Rect_Vertex),
+		)
+	}
 
-	// --- Rect pass (drawn before text so rects appear behind glyphs) ---
+	// Set scissor for this pass. Vulkan coordinates are already Y-down (top-left origin),
+	// matching our screen space — no coordinate flip needed (unlike OpenGL).
+	vk_scissor: vk.Rect2D
+	if scissor.w > 0 && scissor.h > 0 {
+		vk_scissor = vk.Rect2D {
+			offset = {i32(scissor.x), i32(scissor.y)},
+			extent = {u32(scissor.w), u32(scissor.h)},
+		}
+	} else {
+		vk_scissor = vk.Rect2D {
+			offset = {0, 0},
+			extent = r.swapchain_extent,
+		}
+	}
+	vk.CmdSetScissor(cmd, 0, 1, &vk_scissor)
+
+	// vertex_offset is added to every index in vkCmdDrawIndexed, shifting the
+	// index range into this batch's region of the GPU vertex buffer.
+	vertex_offset := i32(r.vertex_batch_offset)
+	rect_vertex_offset := i32(r.rect_batch_offset)
+
+	// --- Rect pass (always before text so rects appear behind glyphs) ---
 	if r.ctx.rect_count > 0 {
-		rect_vert_count := int(r.ctx.rect_count) * slug.VERTICES_PER_QUAD
-		mem.copy(r.rect_vertex_mapped, &r.ctx.rect_vertices[0], rect_vert_count * size_of(slug.Rect_Vertex))
-
 		w := f32(r.swapchain_extent.width)
 		h := f32(r.swapchain_extent.height)
-		// Same Y convention as the slug text pass — Vulkan NDC Y is flipped vs OpenGL,
-		// so ortho(0, w, 0, h) maps screen-space y=0 to top, y=h to bottom.
+		// Vulkan NDC Y is flipped vs OpenGL: ortho(0,w,0,h) maps y=0 to top, y=h to bottom.
 		rect_pc := linalg.matrix_ortho3d_f32(0, w, 0, h, -1, 1)
 
 		vk.CmdBindPipeline(cmd, .GRAPHICS, r.rect_pipeline)
-		vk.CmdPushConstants(cmd, r.rect_pipeline_layout, {.VERTEX}, 0, size_of(matrix[4, 4]f32), &rect_pc)
+		vk.CmdPushConstants(
+			cmd,
+			r.rect_pipeline_layout,
+			{.VERTEX},
+			0,
+			size_of(matrix[4, 4]f32),
+			&rect_pc,
+		)
 
 		rect_vb_offset := vk.DeviceSize(0)
 		vk.CmdBindVertexBuffers(cmd, 0, 1, &r.rect_vertex_buffer, &rect_vb_offset)
 		vk.CmdBindIndexBuffer(cmd, r.rect_index_buffer, 0, .UINT32)
-		vk.CmdDrawIndexed(cmd, r.ctx.rect_count * slug.INDICES_PER_QUAD, 1, 0, 0, 0)
+		vk.CmdDrawIndexed(
+			cmd,
+			r.ctx.rect_count * slug.INDICES_PER_QUAD,
+			1,
+			0,
+			rect_vertex_offset,
+			0,
+		)
 	}
 
 	// --- Slug text pass ---
@@ -607,23 +680,18 @@ draw_frame :: proc(r: ^Renderer) -> bool {
 			mvp      = linalg.matrix_ortho3d_f32(0, w, 0, h, -1, 1),
 			viewport = {w, h},
 		}
-
 		vk.CmdPushConstants(cmd, r.pipeline_layout, {.VERTEX}, 0, size_of(Push_Constants), &pc)
 
-		// Bind vertex and index buffers
 		vb_offset := vk.DeviceSize(0)
 		vk.CmdBindVertexBuffers(cmd, 0, 1, &r.vertex_buffer, &vb_offset)
 		vk.CmdBindIndexBuffer(cmd, r.index_buffer, 0, .UINT32)
 
 		if r.ctx.shared_atlas && r.shared_instance.loaded {
-			// Shared atlas: one descriptor bind, one draw call
 			ds := r.shared_instance.descriptor_set
 			vk.CmdBindDescriptorSets(cmd, .GRAPHICS, r.pipeline_layout, 0, 1, &ds, 0, nil)
-
 			index_count := r.ctx.quad_count * slug.INDICES_PER_QUAD
-			vk.CmdDrawIndexed(cmd, index_count, 1, 0, 0, 0)
+			vk.CmdDrawIndexed(cmd, index_count, 1, 0, vertex_offset, 0)
 		} else {
-			// Per-font draw calls
 			for fi in 0 ..< slug.MAX_FONT_SLOTS {
 				qcount := r.ctx.font_quad_count[fi]
 				if qcount == 0 do continue
@@ -636,15 +704,29 @@ draw_frame :: proc(r: ^Renderer) -> bool {
 
 				first_index := r.ctx.font_quad_start[fi] * slug.INDICES_PER_QUAD
 				index_count := qcount * slug.INDICES_PER_QUAD
-				vk.CmdDrawIndexed(cmd, index_count, 1, first_index, 0, 0)
+				vk.CmdDrawIndexed(cmd, index_count, 1, first_index, vertex_offset, 0)
 			}
 		}
 	}
 
+	// Advance offsets so the next flush writes after this batch in the GPU buffers.
+	r.vertex_batch_offset += vert_count
+	r.rect_batch_offset += u32(rect_vert_count)
+
+	// Re-initialize slug for the next flush pass.
+	slug.begin(&r.ctx)
+}
+
+// End the frame: close the command buffer, submit it to the GPU, and present.
+// Call once after all flush() calls for the frame.
+// Returns false if submission or presentation fails.
+present_frame :: proc(r: ^Renderer) -> bool {
+	frame := r.current_frame
+	cmd := r.command_buffers[r.current_image_index]
+
 	vk.CmdEndRenderPass(cmd)
 	vk.EndCommandBuffer(cmd)
 
-	// Submit
 	wait_stage := vk.PipelineStageFlags{.COLOR_ATTACHMENT_OUTPUT}
 	submit_info := vk.SubmitInfo {
 		sType                = .SUBMIT_INFO,
@@ -652,24 +734,22 @@ draw_frame :: proc(r: ^Renderer) -> bool {
 		pWaitSemaphores      = &r.image_available[frame],
 		pWaitDstStageMask    = &wait_stage,
 		commandBufferCount   = 1,
-		pCommandBuffers      = &r.command_buffers[image_index],
+		pCommandBuffers      = &r.command_buffers[r.current_image_index],
 		signalSemaphoreCount = 1,
 		pSignalSemaphores    = &r.render_finished[frame],
 	}
 
-	submit_result := vk.QueueSubmit(r.graphics_queue, 1, &submit_info, r.in_flight_fences[frame])
-	if submit_result != .SUCCESS {
+	if vk.QueueSubmit(r.graphics_queue, 1, &submit_info, r.in_flight_fences[frame]) != .SUCCESS {
 		return false
 	}
 
-	// Present
 	present_info := vk.PresentInfoKHR {
 		sType              = .PRESENT_INFO_KHR,
 		waitSemaphoreCount = 1,
 		pWaitSemaphores    = &r.render_finished[frame],
 		swapchainCount     = 1,
 		pSwapchains        = &r.swapchain,
-		pImageIndices      = &image_index,
+		pImageIndices      = &r.current_image_index,
 	}
 
 	present_result := vk.QueuePresentKHR(r.present_queue, &present_info)
@@ -1113,10 +1193,7 @@ create_descriptor_set_layout :: proc(r: ^Renderer) -> bool {
 create_descriptor_pool :: proc(r: ^Renderer) -> bool {
 	// +1 set for shared atlas, +2 samplers for shared atlas textures
 	pool_sizes := [1]vk.DescriptorPoolSize {
-		{
-			type            = .COMBINED_IMAGE_SAMPLER,
-			descriptorCount = 2 * (slug.MAX_FONT_SLOTS + 1),
-		},
+		{type = .COMBINED_IMAGE_SAMPLER, descriptorCount = 2 * (slug.MAX_FONT_SLOTS + 1)},
 	}
 
 	pool_info := vk.DescriptorPoolCreateInfo {
@@ -1352,8 +1429,18 @@ create_rect_pipeline :: proc(r: ^Renderer) -> bool {
 	defer vk.DestroyShaderModule(r.device, frag_module, nil)
 
 	shader_stages := [?]vk.PipelineShaderStageCreateInfo {
-		{sType = .PIPELINE_SHADER_STAGE_CREATE_INFO, stage = {.VERTEX}, module = vert_module, pName = "main"},
-		{sType = .PIPELINE_SHADER_STAGE_CREATE_INFO, stage = {.FRAGMENT}, module = frag_module, pName = "main"},
+		{
+			sType = .PIPELINE_SHADER_STAGE_CREATE_INFO,
+			stage = {.VERTEX},
+			module = vert_module,
+			pName = "main",
+		},
+		{
+			sType = .PIPELINE_SHADER_STAGE_CREATE_INFO,
+			stage = {.FRAGMENT},
+			module = frag_module,
+			pName = "main",
+		},
 	}
 
 	// Rect_Vertex: vec2 pos (location 0), vec4 col (location 1)
@@ -1363,8 +1450,18 @@ create_rect_pipeline :: proc(r: ^Renderer) -> bool {
 		inputRate = .VERTEX,
 	}
 	attrib_descs := [2]vk.VertexInputAttributeDescription {
-		{binding = 0, location = 0, format = .R32G32_SFLOAT,       offset = u32(offset_of(slug.Rect_Vertex, pos))},
-		{binding = 0, location = 1, format = .R32G32B32A32_SFLOAT, offset = u32(offset_of(slug.Rect_Vertex, col))},
+		{
+			binding = 0,
+			location = 0,
+			format = .R32G32_SFLOAT,
+			offset = u32(offset_of(slug.Rect_Vertex, pos)),
+		},
+		{
+			binding = 0,
+			location = 1,
+			format = .R32G32B32A32_SFLOAT,
+			offset = u32(offset_of(slug.Rect_Vertex, col)),
+		},
 	}
 
 	vertex_input := vk.PipelineVertexInputStateCreateInfo {
@@ -1447,7 +1544,8 @@ create_rect_pipeline :: proc(r: ^Renderer) -> bool {
 		renderPass          = r.render_pass,
 		subpass             = 0,
 	}
-	if vk.CreateGraphicsPipelines(r.device, 0, 1, &pipeline_info, nil, &r.rect_pipeline) != .SUCCESS {
+	if vk.CreateGraphicsPipelines(r.device, 0, 1, &pipeline_info, nil, &r.rect_pipeline) !=
+	   .SUCCESS {
 		return false
 	}
 
@@ -1472,7 +1570,12 @@ create_rect_buffers :: proc(r: ^Renderer) -> bool {
 	defer delete(indices)
 	ib_size := vk.DeviceSize(len(indices) * size_of(u32))
 
-	staging_buf, staging_mem, staging_ok := create_buffer(r, ib_size, {.TRANSFER_SRC}, {.HOST_VISIBLE, .HOST_COHERENT})
+	staging_buf, staging_mem, staging_ok := create_buffer(
+		r,
+		ib_size,
+		{.TRANSFER_SRC},
+		{.HOST_VISIBLE, .HOST_COHERENT},
+	)
 	if !staging_ok do return false
 	defer vk.DestroyBuffer(r.device, staging_buf, nil)
 	defer vk.FreeMemory(r.device, staging_mem, nil)
@@ -1488,7 +1591,9 @@ create_rect_buffers :: proc(r: ^Renderer) -> bool {
 	r.rect_index_memory = im
 
 	cmd := begin_one_shot_commands(r)
-	copy_region := vk.BufferCopy{size = ib_size}
+	copy_region := vk.BufferCopy {
+		size = ib_size,
+	}
 	vk.CmdCopyBuffer(cmd, staging_buf, ib, 1, &copy_region)
 	end_one_shot_commands(r, cmd)
 

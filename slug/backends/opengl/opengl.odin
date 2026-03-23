@@ -306,16 +306,18 @@ void main() {
 }
 `
 
+
 RECT_FRAGMENT_SHADER_SOURCE :: `#version 330 core
 in vec4 vColor;
 out vec4 fragColor;
 void main() { fragColor = vColor; }
 `
 
+
 // --- Vertex layout constants ---
 
-VERTEX_SIZE      :: size_of(slug.Vertex)      // 80 bytes (5x vec4)
-ATTRIB_COUNT     :: 5
+VERTEX_SIZE :: size_of(slug.Vertex) // 80 bytes (5x vec4)
+ATTRIB_COUNT :: 5
 RECT_VERTEX_SIZE :: size_of(slug.Rect_Vertex) // 24 bytes (vec2 + vec4)
 
 // ===================================================
@@ -461,7 +463,10 @@ load_font :: proc(r: ^Renderer, slot: int, path: string) -> bool {
 // Flush — upload vertices and issue per-font draw calls
 // ===================================================
 
-flush :: proc(r: ^Renderer, width, height: i32) {
+// Upload vertices and issue draw calls for the current slug batch.
+// scissor restricts rendering to a screen-space rectangle; zero value = full screen.
+// Safe to call multiple times per frame with different scissors — each call is independent.
+flush :: proc(r: ^Renderer, width, height: i32, scissor: slug.Scissor_Rect = {}) {
 	quad_count := r.ctx.quad_count
 	if quad_count == 0 do return
 
@@ -483,6 +488,17 @@ flush :: proc(r: ^Renderer, width, height: i32) {
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 	gl.Disable(gl.DEPTH_TEST)
+
+	// Apply scissor rect if one was provided.
+	// OpenGL glScissor uses a bottom-left origin (Y-up), so we must flip Y
+	// from our top-left Y-down screen coordinates.
+	if scissor.w > 0 && scissor.h > 0 {
+		gl_y := height - i32(scissor.y) - i32(scissor.h)
+		gl.Enable(gl.SCISSOR_TEST)
+		gl.Scissor(i32(scissor.x), gl_y, i32(scissor.w), i32(scissor.h))
+	} else {
+		gl.Disable(gl.SCISSOR_TEST)
+	}
 
 	// --- Rect pass (drawn before text so rects appear behind glyphs) ---
 	if r.ctx.rect_count > 0 {
@@ -529,12 +545,7 @@ flush :: proc(r: ^Renderer, width, height: i32) {
 		gl.Uniform1i(r.band_tex_loc, 1)
 
 		index_count := quad_count * slug.INDICES_PER_QUAD
-		gl.DrawElements(
-			gl.TRIANGLES,
-			i32(index_count),
-			gl.UNSIGNED_INT,
-			nil,
-		)
+		gl.DrawElements(gl.TRIANGLES, i32(index_count), gl.UNSIGNED_INT, nil)
 	} else {
 		// Per-font batched draw calls
 		for fi in 0 ..< slug.MAX_FONT_SLOTS {
@@ -569,6 +580,7 @@ flush :: proc(r: ^Renderer, width, height: i32) {
 
 	gl.BindVertexArray(0)
 	gl.UseProgram(0)
+	gl.Disable(gl.SCISSOR_TEST)
 }
 
 // ===================================================

@@ -117,22 +117,38 @@ Glyph_Xform :: struct {
 //   userdata — pointer passed through from the draw call (carry time, state, etc.)
 //
 // Return a Glyph_Xform to modify the glyph. Return {} for identity (no change).
-Glyph_Xform_Proc :: #type proc(char_idx: int, ch: rune, pen_x, y: f32, userdata: rawptr) -> Glyph_Xform
+Glyph_Xform_Proc :: #type proc(
+	char_idx: int,
+	ch: rune,
+	pen_x, y: f32,
+	userdata: rawptr,
+) -> Glyph_Xform
 
 // Common color constants.
-WHITE       :: Color{1.0, 1.0, 1.0, 1.0}
-BLACK       :: Color{0.0, 0.0, 0.0, 1.0}
-RED         :: Color{1.0, 0.0, 0.0, 1.0}
-GREEN       :: Color{0.0, 1.0, 0.0, 1.0}
-BLUE        :: Color{0.0, 0.0, 1.0, 1.0}
-YELLOW      :: Color{1.0, 1.0, 0.0, 1.0}
-CYAN        :: Color{0.0, 1.0, 1.0, 1.0}
-MAGENTA     :: Color{1.0, 0.0, 1.0, 1.0}
-ORANGE      :: Color{1.0, 0.6, 0.0, 1.0}
-GRAY        :: Color{0.5, 0.5, 0.5, 1.0}
-LIGHT_GRAY  :: Color{0.75, 0.75, 0.75, 1.0}
-DARK_GRAY   :: Color{0.25, 0.25, 0.25, 1.0}
+WHITE :: Color{1.0, 1.0, 1.0, 1.0}
+BLACK :: Color{0.0, 0.0, 0.0, 1.0}
+RED :: Color{1.0, 0.0, 0.0, 1.0}
+GREEN :: Color{0.0, 1.0, 0.0, 1.0}
+BLUE :: Color{0.0, 0.0, 1.0, 1.0}
+YELLOW :: Color{1.0, 1.0, 0.0, 1.0}
+CYAN :: Color{0.0, 1.0, 1.0, 1.0}
+MAGENTA :: Color{1.0, 0.0, 1.0, 1.0}
+ORANGE :: Color{1.0, 0.6, 0.0, 1.0}
+GRAY :: Color{0.5, 0.5, 0.5, 1.0}
+LIGHT_GRAY :: Color{0.75, 0.75, 0.75, 1.0}
+DARK_GRAY :: Color{0.25, 0.25, 0.25, 1.0}
 TRANSPARENT :: Color{0.0, 0.0, 0.0, 0.0}
+
+// A screen-space rectangle for GPU scissor clipping.
+// Passed to backend flush procs to restrict rendering to a sub-region of the screen.
+//
+// Zero value (w <= 0 || h <= 0) means no scissor — full-screen rendering.
+// All coordinates are in pixels, Y-down from the top-left corner of the window.
+//
+//   slug_gl.flush(&renderer, width, height, scissor = slug.Scissor_Rect{x=10, y=50, w=300, h=200})
+Scissor_Rect :: struct {
+	x, y, w, h: f32,
+}
 
 // --- Vertex Format ---
 // Matches the 5x vec4 attribute layout in the vertex shader (locations 0-4).
