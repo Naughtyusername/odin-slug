@@ -3,7 +3,7 @@
 Tracks both the feature roadmap and polish/cleanup work.
 Update after each session.
 
-Last updated: 2026-03-23 (session 6)
+Last updated: 2026-03-23 (session 7)
 
 ---
 
@@ -23,6 +23,7 @@ Last updated: 2026-03-23 (session 6)
 - [x] Camera pan (`camera_x/y` in `Context`, `set_camera(ctx, x, y)`; WASD + middle-mouse drag in demos, R to reset, scissor adjusted by cam offset)
 - [x] Zoom toggle + mouse wheel zoom (Tab snaps 1.0x↔0.6x; wheel zooms when not over scroll region; clamped to [0.25, 3.0]x)
 - [x] Grid rendering mode / CP437 (`draw_text_grid`; fixed-width cells, bbox-centered; `\n` row advance)
+- [x] Message log widget (`Message_Log`, `log_push`, `draw_message_log`; fixed-size ring buffer, age-based fade, no dynamic allocation)
 
 ---
 
@@ -43,14 +44,22 @@ Last updated: 2026-03-23 (session 6)
 ## Feature Roadmap
 
 ### Up Next
+- [ ] **#22 — Camera/viewport bugs (Raylib + OpenGL demos)**
+      Raylib-drawn shapes (panel bg, circle, box outlines, scroll region bg, scissor box)
+      use raw screen coords and don't move with camera pan. Slug text does move because
+      camera offset is applied in vertex emitters. Fix: offset all Raylib/GL shape draw
+      calls by cam_x/cam_y so the entire canvas pans together.
+      Also: scroll region mouse-hover check doesn't account for camera offset — scrolling
+      inside a text box moves the viewport instead when panned. Fix: subtract cam offset
+      from mouse coords before the scroll-region bounds check, or capture cursor context
+      when hovering over interactive regions so scroll always wins inside bounds.
+      Vulkan demo is correct (reference implementation). Port fixes to Raylib + OpenGL.
+
 - [ ] **#21 — Viewport zoom (zoom toward cursor)**
       Currently `ui_scale` only scales font sizes — positions are fixed, so zoom doesn't
       follow the cursor. True viewport zoom needs a `zoom` factor in `Context` applied to
       both positions AND font sizes in the vertex emitters, plus a camera offset adjustment
       on each zoom step to keep the point under the cursor fixed in screen space.
-
-- [ ] **#14 — Message log widget**
-      Scrollable, timestamped message list. Built on top of scroll.odin + Text_Style.
 
 - [ ] **#15 — Tooltip system**
       Positioned text box that follows the mouse and auto-flips at screen edges.

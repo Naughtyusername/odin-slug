@@ -110,6 +110,15 @@ CIRCLE_CX :: 560 // untyped: used as i32 for rl.DrawCircle, f32 for slug
 CIRCLE_CY :: 490
 CIRCLE_R :: 90
 
+// Message log (center column, below circle)
+LOG_X :: f32(420)
+LOG_Y :: f32(740) // bottom line of newest message
+LOG_SIZE :: SMALL_SIZE
+LOG_PUSH_INTERVAL :: f32(2.5) // seconds between fake messages
+LOG_FADE_TIME :: f32(4.0) // seconds before fade starts
+LOG_FADE_DURATION :: f32(2.0) // seconds to fade to invisible
+LOG_MAX_VISIBLE :: 6
+
 // ---- Right column (x=800..1240): structural demos ----
 
 RIGHT_X :: f32(800)
@@ -315,6 +324,29 @@ main :: proc() {
 	cursor_text := "Click to position cursor"
 	cursor_idx := 0
 
+	// Message log state
+	msg_log: slug.Message_Log
+	slug.log_init(&msg_log, LOG_FADE_TIME, LOG_FADE_DURATION, LOG_MAX_VISIBLE)
+	next_msg_time: f32 = 1.0 // first message after 1 second
+	msg_index := 0
+	LOG_MESSAGES :: [?]struct {
+		text:  string,
+		color: slug.Color,
+	}{
+		{"You enter the dungeon.",                        {0.7, 0.7, 0.9, 1.0}},
+		{"A goblin lunges from the shadows!",             {1.0, 0.5, 0.3, 1.0}},
+		{"You swing your sword for 12 damage.",           {1.0, 0.9, 0.3, 1.0}},
+		{"The goblin retaliates for 5 damage!",           {1.0, 0.3, 0.3, 1.0}},
+		{"You found a healing potion.",                   {0.3, 1.0, 0.5, 1.0}},
+		{"The goblin collapses. +25 XP.",                 {0.5, 0.85, 1.0, 1.0}},
+		{"You descend deeper into the crypt...",          {0.7, 0.7, 0.9, 1.0}},
+		{"A skeleton king awakens!",                      {1.0, 0.3, 0.3, 1.0}},
+		{"Your sword glows with holy light.",             {1.0, 0.9, 0.5, 1.0}},
+		{"Critical hit! 48 damage!",                      {1.0, 1.0, 0.3, 1.0}},
+		{"The crypt trembles...",                         {0.6, 0.4, 0.8, 1.0}},
+		{"Victory! The skeleton king is vanquished.",     {0.3, 1.0, 0.5, 1.0}},
+	}
+
 	// Camera pan state
 	cam_x: f32 = 0
 	cam_y: f32 = 0
@@ -394,6 +426,15 @@ main :: proc() {
 			} else {
 				slug.set_ui_scale(ctx, clamp(ctx.ui_scale + wheel * ZOOM_WHEEL_STEP, ZOOM_MIN, ZOOM_MAX))
 			}
+		}
+
+		// Push fake roguelike messages on a timer
+		if elapsed >= next_msg_time {
+			messages := LOG_MESSAGES
+			m := messages[msg_index % len(LOG_MESSAGES)]
+			slug.log_push(&msg_log, m.text, m.color, elapsed)
+			msg_index += 1
+			next_msg_time = elapsed + LOG_PUSH_INTERVAL
 		}
 
 		rl.BeginDrawing()
@@ -771,6 +812,10 @@ main :: proc() {
 			elapsed * 0.6,
 			COLOR_YELLOW,
 		)
+
+		// Message log (below circle)
+		slug.draw_text(ctx, "Message Log:", LOG_X, LOG_Y - f32(LOG_MAX_VISIBLE) * 28 - 14, 13, {0.5, 0.5, 0.7, 1.0})
+		slug.draw_message_log(ctx, &msg_log, LOG_X, LOG_Y, LOG_SIZE, elapsed)
 
 		// ---- Right column ----
 

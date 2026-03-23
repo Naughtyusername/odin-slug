@@ -170,6 +170,11 @@ MAX_FONT_SLOTS  :: 4     // font registry slots
 ```
 If adding features that generate rects (e.g. decorations on wrapped text), watch the rect budget.
 
+### Plans and Research Output
+- Write plans, research docs, and backend integration notes to `.claude/plans/` (inside the repo root).
+- This directory is gitignored (under `.claude/`) so nothing gets committed.
+- Do NOT write to `~/.claude/plans/` — that path is outside the repo and background agents cannot write there without manual permission approval.
+
 ### Review Pacing
 - After implementing each feature, stop and wait for the user to review before starting the next one
 - Do not chain multiple features in one session without explicit "looks good, continue" from the user
