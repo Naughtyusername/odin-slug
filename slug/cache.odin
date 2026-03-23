@@ -36,6 +36,10 @@ Text_Cache :: struct {
 // Cache the vertex data for a text string.
 // Renders the text into a temporary buffer and copies the result.
 // The returned cache is independent of the context's per-frame buffer.
+//
+// Precondition: slug.begin(ctx) must be called before cache_text, even when
+// building caches outside the main loop. begin() initializes quad_count to 0;
+// without it the vertex write offset is undefined.
 cache_text :: proc(
 	ctx: ^Context,
 	text: string,

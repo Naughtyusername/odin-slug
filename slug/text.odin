@@ -54,6 +54,9 @@ mono_width :: proc(font: ^Font, font_size: f32) -> f32 {
 }
 
 // Measure a string's pixel dimensions at the given font size.
+// Uses the specified font only — does not follow fallback chains.
+// Results will not account for glyphs resolved via font_set_fallback.
+// For fallback-aware layout, measure each font segment separately.
 measure_text :: proc(
 	font: ^Font,
 	text: string,
@@ -490,6 +493,11 @@ measure_text_wrapped :: proc(
 
 // Draw an SVG icon centered at the given screen position.
 // icon_index is the glyph slot (use 128+ to avoid ASCII collision).
+//
+// Preconditions:
+//   - The active font must be set via use_font() before calling this.
+//   - The icon must have been loaded into that font's slot via svg_load_into_font()
+//     before font processing (font_process / fonts_process_shared).
 draw_icon :: proc(ctx: ^Context, icon_index: int, x, y: f32, size: f32, color: Color) {
 	font := active_font(ctx)
 	g := get_glyph(font, rune(icon_index))

@@ -353,11 +353,13 @@ register_font :: proc(ctx: ^Context, slot: int, font: Font) -> bool {
 // will be looked up in fallback_slot instead. Chains are supported:
 // if fallback_slot also lacks the glyph, its own fallback is tried in turn.
 //
-// Requires shared atlas (fonts_process_shared). In per-font atlas mode the
-// fallback slot is registered but silently ignored during rendering, because
-// glyphs from different font textures cannot be mixed in the same draw call.
+// Requires shared atlas mode. The shared atlas is enabled automatically by
+// fonts_process_shared() — do not call font_process() per-slot when using
+// fallback chains. In per-font atlas mode the fallback slot is registered
+// but silently ignored during rendering, because glyphs from different font
+// textures cannot be mixed in the same draw call.
 //
-// Call after register_font and before fonts_process_shared / font_process.
+// Call after register_font and before fonts_process_shared.
 // Returns false if either slot is invalid or unloaded.
 font_set_fallback :: proc(ctx: ^Context, font_slot, fallback_slot: int) -> bool {
 	if font_slot < 0 || font_slot >= MAX_FONT_SLOTS do return false
@@ -399,6 +401,13 @@ get_glyph_fallback :: proc(ctx: ^Context, ch: rune) -> ^Glyph_Data {
 active_font :: proc(ctx: ^Context) -> ^Font {
 	assert(ctx.active_font_idx >= 0 && ctx.active_font_idx < MAX_FONT_SLOTS)
 	return &ctx.fonts[ctx.active_font_idx]
+}
+
+// Return the slot index of the currently active font (0–MAX_FONT_SLOTS-1).
+// Use this when you need to save and restore the active slot around a
+// use_font() call, without tracking it in your own state.
+active_font_index :: proc(ctx: ^Context) -> int {
+	return ctx.active_font_idx
 }
 
 // Set the UI scale factor. Affects all subsequent scaled_size() calls.

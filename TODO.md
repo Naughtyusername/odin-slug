@@ -21,49 +21,39 @@ Last updated: 2026-03-23 (session 6)
 - [x] Subscript / superscript (`draw_text_sub`, `draw_text_super`, `SUB_SCALE/SHIFT/SUPER_SHIFT` constants)
 - [x] GPU scissor clipping (`Scissor_Rect`, optional `scissor` param on `flush` / `present_frame`; multi-pass per frame)
 - [x] Camera pan (`camera_x/y` in `Context`, `set_camera(ctx, x, y)`; WASD + middle-mouse drag in demos, R to reset, scissor adjusted by cam offset)
+- [x] Zoom toggle + mouse wheel zoom (Tab snaps 1.0x↔0.6x; wheel zooms when not over scroll region; clamped to [0.25, 3.0]x)
+- [x] Grid rendering mode / CP437 (`draw_text_grid`; fixed-width cells, bbox-centered; `\n` row advance)
 
 ---
 
 ## Polish / Cleanup
-*Items from the 2026-03-22 codebase review. Fix these opportunistically — before or alongside features.*
+*Fix these opportunistically — before or alongside features.*
 
-### Documentation
-- [ ] `draw_icon` — add precondition comment: active font must be set via `use_font()`; icon glyphs
-      should live in slots 128+ via `svg_load_into_font()`
-- [ ] `cache_text` — add precondition comment: `slug.begin(ctx)` must be called first to initialize
-      `quad_count`, even outside the main loop
-- [ ] `measure_text` / `measure_text_wrapped` — note in comment that these use the specified font
-      only (no fallback chain), so results won't account for glyphs resolved via `font_set_fallback`
-- [ ] `font_set_fallback` — add cross-reference: "shared atlas is enabled automatically by
-      `fonts_process_shared()`; fallback is silently skipped in per-font atlas mode"
+### Documentation *(all done session 6)*
+- [x] `draw_icon` — precondition comment added
+- [x] `cache_text` — precondition comment added (`begin()` required)
+- [x] `measure_text` — fallback chain caveat added
+- [x] `font_set_fallback` — shared atlas cross-reference added
 
 ### API additions
-- [ ] `active_font_index(ctx) -> int` — introspection proc so callers can query which slot is
-      currently active without tracking it themselves
-
-### Naming
-- [x] Renamed `snap` → `coord_snap` (noun_verb convention, pre-v1 rename)
+- [x] `active_font_index(ctx) -> int` — added session 6
 
 ---
 
 ## Feature Roadmap
 
-### In Progress
-*(nothing)*
-
 ### Up Next
-- [x] **#19 — Camera pan** *(done session 6)*
-- [x] **#20 — Zoom toggle** *(done session 6)* Tab snaps 1.0x↔0.6x; mouse wheel zooms when not over scroll region; Up/Down/wheel all clamped to [0.25, 3.0]x
 - [ ] **#21 — Viewport zoom (zoom toward cursor)**
       Currently `ui_scale` only scales font sizes — positions are fixed, so zoom doesn't
       follow the cursor. True viewport zoom needs a `zoom` factor in `Context` applied to
       both positions AND font sizes in the vertex emitters, plus a camera offset adjustment
       on each zoom step to keep the point under the cursor fixed in screen space.
 
-- [x] **#13 — Grid rendering mode (CP437)** *(done session 6)*
-      `draw_text_grid(ctx, text, x, y, font_size, cell_w, cell_h, color)`. Fixed-width cells,
-      each character's bbox centered in its cell. Newlines advance row. Demos show a 2-row
-      roguelike ASCII map.
+- [ ] **#14 — Message log widget**
+      Scrollable, timestamped message list. Built on top of scroll.odin + Text_Style.
+
+- [ ] **#15 — Tooltip system**
+      Positioned text box that follows the mouse and auto-flips at screen edges.
 
 ### Near-Term Backends
 - [ ] **#16 — Sokol backend** (`slug_sokol`)
@@ -80,14 +70,6 @@ Last updated: 2026-03-23 (session 6)
       Needs `flush(scissor)` support via the underlying GL/D3D11/Metal scissor APIs.
 
 ### Later / Stretch Goals
-- [ ] **#14 — Message log widget**
-      Scrollable, timestamped message list. Probably built on top of scroll.odin + Text_Style.
-      May wait until #9 and #12 are done.
-
-- [ ] **#15 — Tooltip system**
-      Positioned text box that follows the mouse and auto-flips at screen edges. Needs hit testing
-      (#8) to be useful.
-
 - [ ] **#1 — Instanced rendering**
       Replace one-quad-per-glyph with GPU instancing. Big perf win for dense text. Requires
       shader changes in all backends. Defer until the API is stable (post-v1.0).
@@ -104,3 +86,5 @@ Last updated: 2026-03-23 (session 6)
   fallback chain is registered but silently ignored to avoid cross-texture quad corruption.
 - `draw_rect` / background rects are always drawn *before* glyphs regardless of call order — rects
   can never appear on top of text in the same frame.
+- `ui_scale` only scales font sizes, not layout positions. For true viewport zoom (scale + pan
+  toward cursor), see #21.
