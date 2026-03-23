@@ -377,16 +377,19 @@ main :: proc() {
 			case .MOUSE_WHEEL:
 				mx, my: f32
 				_ = sdl.GetMouseState(&mx, &my)
+				// Convert mouse to world space for hit testing against world-space layout
+				wmx := mx - cam_x
+				wmy := my - cam_y
 				scroll_content_h := slug.measure_text_wrapped(
 					ctx,
 					SCROLL_TEXT,
 					SMALL_SIZE,
 					scroll_region.width,
 				)
-				if mx >= scroll_region.x &&
-				   mx <= scroll_region.x + scroll_region.width &&
-				   my >= scroll_region.y &&
-				   my <= scroll_region.y + scroll_region.height {
+				if wmx >= scroll_region.x &&
+				   wmx <= scroll_region.x + scroll_region.width &&
+				   wmy >= scroll_region.y &&
+				   wmy <= scroll_region.y + scroll_region.height {
 					slug.scroll_by(&scroll_region, -event.wheel.y * 20.0, scroll_content_h)
 				} else {
 					slug.set_ui_scale(ctx, clamp(ctx.ui_scale + event.wheel.y * ZOOM_WHEEL_STEP, ZOOM_MIN, ZOOM_MAX))

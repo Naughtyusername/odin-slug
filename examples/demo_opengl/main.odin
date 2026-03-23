@@ -443,11 +443,15 @@ main :: proc() {
 			SMALL_SIZE,
 			scroll_region.width,
 		)
+		// Convert mouse to world space for hit testing against world-space layout
+		world_mx := mouse_x - cam_x
+		world_my := mouse_y - cam_y
+
 		if scroll_accum != 0 {
-			if mouse_x >= scroll_region.x &&
-			   mouse_x <= scroll_region.x + scroll_region.width &&
-			   mouse_y >= scroll_region.y &&
-			   mouse_y <= scroll_region.y + scroll_region.height {
+			if world_mx >= scroll_region.x &&
+			   world_mx <= scroll_region.x + scroll_region.width &&
+			   world_my >= scroll_region.y &&
+			   world_my <= scroll_region.y + scroll_region.height {
 				slug.scroll_by(&scroll_region, f32(-scroll_accum) * 20.0, scroll_content_h)
 			} else {
 				slug.set_ui_scale(ctx, clamp(ctx.ui_scale + f32(scroll_accum) * ZOOM_WHEEL_STEP, ZOOM_MIN, ZOOM_MAX))

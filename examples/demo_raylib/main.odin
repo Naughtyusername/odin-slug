@@ -416,12 +416,16 @@ main :: proc() {
 			SMALL_SIZE,
 			scroll_region.width,
 		)
+		// Convert mouse to world space for hit testing against world-space layout
+		world_mx := mouse_x - cam_x
+		world_my := mouse_y - cam_y
+
 		wheel := rl.GetMouseWheelMove()
 		if wheel != 0 {
-			if mouse_x >= scroll_region.x &&
-			   mouse_x <= scroll_region.x + scroll_region.width &&
-			   mouse_y >= scroll_region.y &&
-			   mouse_y <= scroll_region.y + scroll_region.height {
+			if world_mx >= scroll_region.x &&
+			   world_mx <= scroll_region.x + scroll_region.width &&
+			   world_my >= scroll_region.y &&
+			   world_my <= scroll_region.y + scroll_region.height {
 				slug.scroll_by(&scroll_region, -wheel * 20.0, scroll_content_h)
 			} else {
 				slug.set_ui_scale(ctx, clamp(ctx.ui_scale + wheel * ZOOM_WHEEL_STEP, ZOOM_MIN, ZOOM_MAX))
@@ -447,23 +451,27 @@ main :: proc() {
 		// Draw shapes, sprites, tilemaps — anything Raylib handles.
 		// Slug text comes AFTER this phase.
 
+		// Camera-adjusted integer offsets for Raylib draw calls
+		cx := i32(cam_x)
+		cy := i32(cam_y)
+
 		// Panel background
-		rl.DrawRectangle(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, rl.Color{40, 40, 60, 255})
-		rl.DrawRectangleLines(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, rl.Color{100, 100, 140, 255})
+		rl.DrawRectangle(PANEL_X + cx, PANEL_Y + cy, PANEL_W, PANEL_H, rl.Color{40, 40, 60, 255})
+		rl.DrawRectangleLines(PANEL_X + cx, PANEL_Y + cy, PANEL_W, PANEL_H, rl.Color{100, 100, 140, 255})
 
 		// Decorative circle (center column)
-		rl.DrawCircle(CIRCLE_CX, CIRCLE_CY, CIRCLE_R, rl.Color{60, 20, 80, 255})
-		rl.DrawCircleLines(CIRCLE_CX, CIRCLE_CY, CIRCLE_R, rl.Color{140, 80, 200, 255})
+		rl.DrawCircle(CIRCLE_CX + cx, CIRCLE_CY + cy, CIRCLE_R, rl.Color{60, 20, 80, 255})
+		rl.DrawCircleLines(CIRCLE_CX + cx, CIRCLE_CY + cy, CIRCLE_R, rl.Color{140, 80, 200, 255})
 
 		// Gradient bar at bottom
-		rl.DrawRectangleGradientH(40, 655, 370, 20, rl.DARKBLUE, rl.SKYBLUE)
+		rl.DrawRectangleGradientH(40 + cx, 655 + cy, 370, 20, rl.DARKBLUE, rl.SKYBLUE)
 
 		// Alignment guide line
 		rl.DrawLine(
-			i32(ALIGN_X),
-			i32(ALIGN_Y0) - 10,
-			i32(ALIGN_X),
-			i32(ALIGN_Y2) + 15,
+			i32(ALIGN_X) + cx,
+			i32(ALIGN_Y0) - 10 + cy,
+			i32(ALIGN_X) + cx,
+			i32(ALIGN_Y2) + 15 + cy,
 			rl.Color{80, 80, 80, 255},
 		)
 
@@ -471,8 +479,8 @@ main :: proc() {
 		WRAP_TEXT :: "The ancient scroll reads: You have defeated the Skeleton King and earned 250 gold. Your sword glows with newfound power."
 		text_h := slug.measure_text_wrapped(ctx, WRAP_TEXT, SMALL_SIZE, WRAP_W - WRAP_PAD * 2)
 		rl.DrawRectangleLines(
-			i32(RIGHT_X),
-			i32(WRAP_Y),
+			i32(RIGHT_X) + cx,
+			i32(WRAP_Y) + cy,
 			i32(WRAP_W),
 			i32(text_h) + i32(WRAP_PAD) * 2,
 			rl.Color{80, 80, 120, 255},
@@ -480,15 +488,15 @@ main :: proc() {
 
 		// Scroll region background
 		rl.DrawRectangle(
-			i32(scroll_region.x),
-			i32(scroll_region.y),
+			i32(scroll_region.x) + cx,
+			i32(scroll_region.y) + cy,
 			i32(scroll_region.width),
 			i32(scroll_region.height),
 			rl.Color{30, 30, 50, 255},
 		)
 		rl.DrawRectangleLines(
-			i32(scroll_region.x),
-			i32(scroll_region.y),
+			i32(scroll_region.x) + cx,
+			i32(scroll_region.y) + cy,
 			i32(scroll_region.width),
 			i32(scroll_region.height),
 			rl.Color{80, 80, 120, 255},
@@ -501,8 +509,8 @@ main :: proc() {
 		if thumb_h < 10 do thumb_h = 10
 		thumb_y := i32(scroll_region.y + frac * (scroll_region.height - f32(thumb_h)))
 		rl.DrawRectangle(
-			i32(scroll_region.x + scroll_region.width - 4),
-			thumb_y,
+			i32(scroll_region.x + scroll_region.width - 4) + cx,
+			thumb_y + cy,
 			4,
 			thumb_h,
 			rl.Color{100, 100, 160, 200},
@@ -510,22 +518,22 @@ main :: proc() {
 
 		// GPU scissor demo box outline — drawn with Raylib (unclipped)
 		rl.DrawRectangle(
-			i32(CLIP_BOX_X),
-			i32(CLIP_BOX_Y),
+			i32(CLIP_BOX_X) + cx,
+			i32(CLIP_BOX_Y) + cy,
 			i32(CLIP_BOX_W),
 			i32(CLIP_BOX_H),
 			rl.Color{20, 36, 56, 255},
 		)
 		rl.DrawRectangleLines(
-			i32(CLIP_BOX_X),
-			i32(CLIP_BOX_Y),
+			i32(CLIP_BOX_X) + cx,
+			i32(CLIP_BOX_Y) + cy,
 			i32(CLIP_BOX_W),
 			i32(CLIP_BOX_H),
 			rl.Color{80, 100, 150, 255},
 		)
 
 		// Raylib's built-in text (for comparison — bitmap-based, blurry at large sizes)
-		rl.DrawText("Raylib built-in text (bitmap)", 500, 680, 18, rl.GRAY)
+		rl.DrawText("Raylib built-in text (bitmap)", 500 + cx, 680 + cy, 18, rl.GRAY)
 
 		// ===========================================
 		// PHASE 2: Slug text rendering
@@ -625,12 +633,12 @@ main :: proc() {
 		cursor_px := slug.cursor_x_from_index(font, cursor_text, SMALL_SIZE, cursor_idx)
 		// Blinking cursor line (drawn with Raylib so it appears above slug text)
 		if int(elapsed * 2) % 2 == 0 {
-			cx := i32(LEFT_X + cursor_px)
+			cursor_screen_x := i32(LEFT_X + cursor_px) + cx
 			rl.DrawLine(
-				cx,
-				i32(ROW_CURSOR) - 18,
-				cx,
-				i32(ROW_CURSOR) + 4,
+				cursor_screen_x,
+				i32(ROW_CURSOR) - 18 + cy,
+				cursor_screen_x,
+				i32(ROW_CURSOR) + 4 + cy,
 				rl.Color{200, 255, 200, 255},
 			)
 		}
@@ -826,10 +834,10 @@ main :: proc() {
 		// Truncated text: long string clipped at TRUNCATE_MAX_W with "..."
 		// The clip boundary is visualized with a Raylib line.
 		rl.DrawLine(
-			i32(RIGHT_X + 10 + TRUNCATE_MAX_W),
-			i32(TRUNCATE_Y) - 18,
-			i32(RIGHT_X + 10 + TRUNCATE_MAX_W),
-			i32(TRUNCATE_Y) + 4,
+			i32(RIGHT_X + 10 + TRUNCATE_MAX_W) + cx,
+			i32(TRUNCATE_Y) - 18 + cy,
+			i32(RIGHT_X + 10 + TRUNCATE_MAX_W) + cx,
+			i32(TRUNCATE_Y) + 4 + cy,
 			rl.Color{80, 80, 80, 255},
 		)
 		slug.draw_text(ctx, "clip:", RIGHT_X + 10, TRUNCATE_Y - 18, 12, {0.4, 0.4, 0.5, 1.0})
