@@ -12,6 +12,7 @@ Extracted from the SlugVibes demo into a reusable, graphics-API-agnostic package
 - `slug/backends/vulkan/` — Vulkan 1.x backend (package slug_vulkan)
 - `slug/backends/opengl/` — OpenGL 3.3 backend (package slug_opengl)
 - `slug/backends/sdl3gpu/` — SDL3 GPU backend (package slug_sdl3gpu)
+- `slug/backends/karl2d/` — Karl2D backend (package slug_karl2d, wraps OpenGL)
 - `slug/shaders/` — GLSL shader source (3.30 + 4.50 + SDL3 UBO variants)
 - `examples/` — demo programs
 
@@ -25,6 +26,7 @@ odin check slug/backends/opengl/ -no-entry-point
 odin check slug/backends/raylib/ -no-entry-point
 odin check slug/backends/vulkan/ -no-entry-point
 odin check slug/backends/sdl3gpu/ -no-entry-point
+odin check slug/backends/karl2d/ -no-entry-point
 
 # Build examples
 odin build examples/demo_opengl/ -collection:libs=.
@@ -39,9 +41,14 @@ odin build examples/demo_vulkan/ -collection:libs=.
 ./build.sh shaders
 odin build examples/demo_sdl3gpu/ -collection:libs=.
 # or: ./build.sh sdl3gpu
+
+# Karl2D: requires KARL2D_PATH pointing to parent of karl2d/
+export KARL2D_PATH=/path/to  # where /path/to/karl2d/ exists
+odin build examples/demo_karl2d/ -collection:libs=. -collection:karl2d=$KARL2D_PATH
+# or: KARL2D_PATH=/path/to ./build.sh karl2d
 ```
 
-Always run all five `odin check` commands + build all 4 demos before committing.
+Always run all six `odin check` commands + build all 5 demos before committing.
 
 ## Key Files — What to Edit for What
 
@@ -55,6 +62,7 @@ Always run all five `odin check` commands + build all 4 demos before committing.
 | OpenGL backend (rect pipeline, flush) | `slug/backends/opengl/opengl.odin` |
 | Vulkan backend (pipelines, flush, present_frame) | `slug/backends/vulkan/renderer.odin` |
 | SDL3 GPU backend (pipelines, flush, present_frame) | `slug/backends/sdl3gpu/sdl3gpu.odin` |
+| Karl2D backend (thin wrapper over GL) | `slug/backends/karl2d/karl2d.odin` |
 | Raylib backend (thin wrapper over GL) | `slug/backends/raylib/raylib.odin` |
 | GLSL shaders (OpenGL 3.30) | `slug/shaders/*.330.*` |
 | GLSL shaders (Vulkan 4.50) | `slug/shaders/*.450.*` |
@@ -98,7 +106,7 @@ public API must meet these standards:
 - Check `odin check` on core + all backends + build examples before committing
 - New procs in core must work across all backends without changes
 - New types that affect the vertex format or texture packing need shader updates too
-- **All 4 demos (demo_raylib, demo_opengl, demo_vulkan, demo_sdl3gpu) must showcase every user-facing feature** — no exceptions
+- **All 5 demos (demo_raylib, demo_opengl, demo_vulkan, demo_sdl3gpu, demo_karl2d) must showcase every user-facing feature** — no exceptions
 - Update docs/DESIGN.md if the feature changes architecture
 
 ### Demo Layout — Adding New Elements
@@ -172,6 +180,12 @@ Do NOT copy the Vulkan projection when writing SDL3 GPU code — it will render 
 
 ### SDL3 GPU push constants → UBOs
 SDL3 GPU's `PushGPUVertexUniformData` maps to uniform buffer objects, NOT Vulkan push constants. Shaders that use `layout(push_constant)` will silently receive all-zero uniforms. The SDL3 GPU backend has its own shader variants (`*_sdl3.*`) using `layout(set = 1, binding = 0) uniform UBO` for vertex uniforms and `layout(set = 2, binding = N)` for fragment samplers.
+
+### Karl2D batch flush callback
+Karl2D is a third-party package (not an Odin vendor lib), so the Karl2D backend cannot import it directly. Instead, the caller passes `k2.draw_current_batch` as a callback to `init()`. This is the equivalent of `rlgl.DrawRenderBatchActive()` in the Raylib backend. Karl2D does NOT cache GL state, so no state invalidation is needed after slug's flush.
+
+### Karl2D build — collection path
+Karl2D uses `import k2 "karl2d:karl2d"`. The `-collection:karl2d=` flag must point to the **parent** directory of the karl2d/ folder, not to karl2d/ itself. Example: if Karl2D is at `/home/user/libs/karl2d/`, use `-collection:karl2d=/home/user/libs`.
 
 ### Rect draw order
 `draw_rect` appends to `ctx.rect_vertices[]`. Backends draw ALL rects in a single flat-color pass BEFORE the Slug glyph pass — so rects are always behind text, regardless of call order within a frame. You cannot draw a rect on top of glyphs in the same frame.

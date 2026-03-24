@@ -14,10 +14,11 @@ usage() {
     echo "  check       Check that all packages compile (no binary output)"
     echo "  opengl      Build the OpenGL/GLFW demo"
     echo "  raylib      Build the Raylib integration demo"
-    echo "  vulkan      Compile shaders + build the Vulkan/SDL3 demo"
+    echo "  vulkan      Compile shaders + build the Vulkan demo"
     echo "  sdl3gpu     Compile shaders + build the SDL3 GPU demo"
+    echo "  karl2d      Build the Karl2D integration demo (requires KARL2D_PATH)"
     echo "  shaders     Compile GLSL 4.50 shaders to SPIR-V (requires glslc)"
-    echo "  all         Build all examples"
+    echo "  all         Build all examples (except karl2d)"
     echo "  clean       Remove build artifacts"
     echo ""
     echo "If no command is given, 'check' is run."
@@ -43,6 +44,10 @@ do_check() {
     echo "=== Checking SDL3 GPU backend ==="
     odin check slug/backends/sdl3gpu/ -no-entry-point
     echo "SDL3 GPU backend: OK"
+
+    echo "=== Checking Karl2D backend ==="
+    odin check slug/backends/karl2d/ -no-entry-point
+    echo "Karl2D backend: OK"
 
     echo ""
     echo "All packages compile cleanly."
@@ -88,10 +93,21 @@ do_build_sdl3gpu() {
     echo "Built: ./demo_sdl3gpu"
 }
 
+do_build_karl2d() {
+    echo "=== Building Karl2D demo ==="
+    if [ -z "$KARL2D_PATH" ]; then
+        echo "Error: KARL2D_PATH not set. Set it to the PARENT directory of karl2d/."
+        echo "  export KARL2D_PATH=/path/to  (where /path/to/karl2d/ exists)"
+        exit 1
+    fi
+    odin build examples/demo_karl2d/ -out:demo_karl2d -collection:libs=. -collection:karl2d="$KARL2D_PATH"
+    echo "Built: ./demo_karl2d"
+}
+
 do_clean() {
     echo "=== Cleaning build artifacts ==="
-    rm -f demo_opengl demo_raylib demo_vulkan demo_sdl3gpu
-    rm -f slug/shaders/slug_vert.spv slug/shaders/slug_frag.spv
+    rm -f demo_opengl demo_raylib demo_vulkan demo_sdl3gpu demo_karl2d
+    rm -f slug/shaders/*.spv
     echo "Clean."
 }
 
@@ -103,6 +119,7 @@ case "$CMD" in
     raylib)  do_build_raylib ;;
     vulkan)  do_build_vulkan ;;
     sdl3gpu) do_build_sdl3gpu ;;
+    karl2d)  do_build_karl2d ;;
     shaders) do_compile_shaders ;;
     all)     do_build_opengl; do_build_raylib; do_build_vulkan; do_build_sdl3gpu ;;
     clean)   do_clean ;;
