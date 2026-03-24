@@ -12,6 +12,23 @@ import "core:strings"
 // into Bezier_Curve data that feeds directly into the Slug pipeline.
 //
 // Supported commands: M/m L/l H/h V/v C/c S/s Q/q T/t A/a Z/z
+//
+// Two workflows:
+//
+//   Standalone icon — load, render at any size:
+//     icon, ok := slug.svg_load_icon("sword.svg")
+//     defer slug.svg_icon_destroy(&icon)
+//     // render with emit_glyph_quad using icon.glyph
+//
+//   Icon as font glyph — embed into a font slot for use with draw_text:
+//     slug.svg_load_into_font(&font, 0xE001, "sword.svg")
+//     // ... then font_process / pack as usual
+//     // draw with draw_text using the codepoint \uE001
+//
+// All SVG coordinates are normalized to em-space [0,1] using the viewBox.
+// Cubic Bezier curves (C/S commands) are automatically decomposed into
+// quadratic segments for the Slug rendering pipeline. Arc commands (A)
+// are converted to cubic Beziers first, then decomposed.
 // ===================================================
 
 SVG_Icon :: struct {

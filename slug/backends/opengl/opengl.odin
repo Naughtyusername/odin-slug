@@ -324,6 +324,10 @@ RECT_VERTEX_SIZE :: size_of(slug.Rect_Vertex) // 24 bytes (vec2 + vec4)
 // Initialization
 // ===================================================
 
+// Initialize the OpenGL renderer: compile shaders, create VAO/VBO/IBO
+// for both the Slug text pipeline and the flat-color rect pipeline.
+// Call after an OpenGL 3.3+ context is active. Returns false if
+// shader compilation or linking fails.
 init :: proc(r: ^Renderer) -> bool {
 	// Compile and link shader program
 	program, program_ok := gl.load_shaders_source(VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE)
@@ -440,6 +444,9 @@ init :: proc(r: ^Renderer) -> bool {
 // Font loading
 // ===================================================
 
+// Load a TTF font file, process it, and upload textures to the GPU.
+// All-in-one convenience. For manual control (e.g., loading SVG icons
+// before processing), use upload_font_textures() instead.
 load_font :: proc(r: ^Renderer, slot: int, path: string) -> bool {
 	if slot < 0 || slot >= slug.MAX_FONT_SLOTS do return false
 

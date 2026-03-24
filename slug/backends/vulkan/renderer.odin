@@ -125,6 +125,10 @@ FRAG_SHADER_CODE :: #load("slug_frag.spv")
 RECT_VERT_SHADER_CODE :: #load("rect_vert.spv")
 RECT_FRAG_SHADER_CODE :: #load("rect_frag.spv")
 
+// Initialize the Vulkan renderer: create instance, device, swapchain, pipelines,
+// and all GPU buffers. The caller owns the SDL window — init does NOT create it.
+// Call after sdl.CreateWindow with the .VULKAN flag.
+// Returns false if any Vulkan setup step fails.
 init :: proc(r: ^Renderer, window: ^sdl.Window) -> bool {
 	r.window = window
 
@@ -188,6 +192,8 @@ unload_font :: proc(r: ^Renderer, slot: int) {
 	slug.unload_font(&r.ctx, slot)
 }
 
+// Release all Vulkan resources (pipelines, buffers, textures, device, instance)
+// and free the slug context. Does NOT destroy the SDL window — caller owns it.
 destroy :: proc(r: ^Renderer) {
 	if r.device != nil {
 		vk.DeviceWaitIdle(r.device)
@@ -278,6 +284,10 @@ destroy :: proc(r: ^Renderer) {
 	slug.destroy(&r.ctx)
 }
 
+// Load a TTF font file, process it, and upload textures to the GPU.
+// All-in-one convenience — creates the Vulkan textures and descriptor set.
+// For manual control (e.g., loading SVG icons before processing), use
+// upload_font_textures() instead.
 load_font :: proc(r: ^Renderer, slot: int, path: string, name: string = "") -> bool {
 	if slot < 0 || slot >= slug.MAX_FONT_SLOTS {
 		return false
@@ -581,6 +591,9 @@ begin_frame :: proc(r: ^Renderer) -> bool {
 	return true
 }
 
+// Set the active font slot for subsequent draw calls.
+// Only needed in per-font (non-shared-atlas) mode to switch between fonts.
+// In shared atlas mode, all fonts share one texture pair, so this is a no-op.
 use_font :: proc(r: ^Renderer, slot: int) {
 	slug.use_font(&r.ctx, slot)
 }
