@@ -10,6 +10,7 @@
 /demo_vulkan
 /demo_sdl3gpu
 /demo_karl2d
+/demo_sokol
 
 
 # Editor

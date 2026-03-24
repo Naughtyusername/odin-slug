@@ -17,8 +17,9 @@ usage() {
     echo "  vulkan      Compile shaders + build the Vulkan demo"
     echo "  sdl3gpu     Compile shaders + build the SDL3 GPU demo"
     echo "  karl2d      Build the Karl2D integration demo (requires KARL2D_PATH)"
+    echo "  sokol       Build the Sokol GFX demo (requires SOKOL_PATH)"
     echo "  shaders     Compile GLSL 4.50 shaders to SPIR-V (requires glslc)"
-    echo "  all         Build all examples (except karl2d)"
+    echo "  all         Build all examples (except karl2d, sokol)"
     echo "  clean       Remove build artifacts"
     echo ""
     echo "If no command is given, 'check' is run."
@@ -48,6 +49,14 @@ do_check() {
     echo "=== Checking Karl2D backend ==="
     odin check slug/backends/karl2d/ -no-entry-point
     echo "Karl2D backend: OK"
+
+    if [ -n "$SOKOL_PATH" ]; then
+        echo "=== Checking Sokol backend ==="
+        odin check slug/backends/sokol/ -no-entry-point -collection:sokol="$SOKOL_PATH"
+        echo "Sokol backend: OK"
+    else
+        echo "=== Skipping Sokol backend (SOKOL_PATH not set) ==="
+    fi
 
     echo ""
     echo "All packages compile cleanly."
@@ -104,9 +113,20 @@ do_build_karl2d() {
     echo "Built: ./demo_karl2d"
 }
 
+do_build_sokol() {
+    echo "=== Building Sokol GFX demo ==="
+    if [ -z "$SOKOL_PATH" ]; then
+        echo "Error: SOKOL_PATH not set. Set it to the sokol/ subdir in a sokol-odin clone."
+        echo "  export SOKOL_PATH=/path/to/sokol-odin/sokol"
+        exit 1
+    fi
+    odin build examples/demo_sokol/ -out:demo_sokol -collection:libs=. -collection:sokol="$SOKOL_PATH"
+    echo "Built: ./demo_sokol"
+}
+
 do_clean() {
     echo "=== Cleaning build artifacts ==="
-    rm -f demo_opengl demo_raylib demo_vulkan demo_sdl3gpu demo_karl2d
+    rm -f demo_opengl demo_raylib demo_vulkan demo_sdl3gpu demo_karl2d demo_sokol
     rm -f slug/shaders/*.spv
     echo "Clean."
 }
@@ -120,6 +140,7 @@ case "$CMD" in
     vulkan)  do_build_vulkan ;;
     sdl3gpu) do_build_sdl3gpu ;;
     karl2d)  do_build_karl2d ;;
+    sokol)   do_build_sokol ;;
     shaders) do_compile_shaders ;;
     all)     do_build_opengl; do_build_raylib; do_build_vulkan; do_build_sdl3gpu ;;
     clean)   do_clean ;;

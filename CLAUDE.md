@@ -13,6 +13,7 @@ Extracted from the SlugVibes demo into a reusable, graphics-API-agnostic package
 - `slug/backends/opengl/` — OpenGL 3.3 backend (package slug_opengl)
 - `slug/backends/sdl3gpu/` — SDL3 GPU backend (package slug_sdl3gpu)
 - `slug/backends/karl2d/` — Karl2D backend (package slug_karl2d, wraps OpenGL)
+- `slug/backends/sokol/` — Sokol GFX backend (package slug_sokol, GL-only GLSL 430)
 - `slug/shaders/` — GLSL shader source (3.30 + 4.50 + SDL3 UBO variants)
 - `examples/` — demo programs
 
@@ -46,9 +47,14 @@ odin build examples/demo_sdl3gpu/ -collection:libs=.
 export KARL2D_PATH=/path/to  # where /path/to/karl2d/ exists
 odin build examples/demo_karl2d/ -collection:libs=. -collection:karl2d=$KARL2D_PATH
 # or: KARL2D_PATH=/path/to ./build.sh karl2d
+
+# Sokol GFX: requires SOKOL_PATH pointing to sokol/ subdir in sokol-odin
+export SOKOL_PATH=/path/to/sokol-odin/sokol
+odin build examples/demo_sokol/ -collection:libs=. -collection:sokol=$SOKOL_PATH
+# or: SOKOL_PATH=/path/to/sokol-odin/sokol ./build.sh sokol
 ```
 
-Always run all six `odin check` commands + build all 5 demos before committing.
+Always run all checks + build all demos before committing. Sokol check requires SOKOL_PATH.
 
 ## Key Files — What to Edit for What
 
@@ -63,6 +69,7 @@ Always run all six `odin check` commands + build all 5 demos before committing.
 | Vulkan backend (pipelines, flush, present_frame) | `slug/backends/vulkan/renderer.odin` |
 | SDL3 GPU backend (pipelines, flush, present_frame) | `slug/backends/sdl3gpu/sdl3gpu.odin` |
 | Karl2D backend (thin wrapper over GL) | `slug/backends/karl2d/karl2d.odin` |
+| Sokol GFX backend (standalone GL) | `slug/backends/sokol/sokol.odin` |
 | Raylib backend (thin wrapper over GL) | `slug/backends/raylib/raylib.odin` |
 | GLSL shaders (OpenGL 3.30) | `slug/shaders/*.330.*` |
 | GLSL shaders (Vulkan 4.50) | `slug/shaders/*.450.*` |
@@ -106,7 +113,7 @@ public API must meet these standards:
 - Check `odin check` on core + all backends + build examples before committing
 - New procs in core must work across all backends without changes
 - New types that affect the vertex format or texture packing need shader updates too
-- **All 5 demos (demo_raylib, demo_opengl, demo_vulkan, demo_sdl3gpu, demo_karl2d) must showcase every user-facing feature** — no exceptions
+- **All 6 demos (demo_raylib, demo_opengl, demo_vulkan, demo_sdl3gpu, demo_karl2d, demo_sokol) must showcase every user-facing feature** — no exceptions
 - Update docs/DESIGN.md if the feature changes architecture
 
 ### Demo Layout — Adding New Elements
@@ -183,6 +190,15 @@ SDL3 GPU's `PushGPUVertexUniformData` maps to uniform buffer objects, NOT Vulkan
 
 ### Karl2D batch flush callback
 Karl2D is a third-party package (not an Odin vendor lib), so the Karl2D backend cannot import it directly. Instead, the caller passes `k2.draw_current_batch` as a callback to `init()`. This is the equivalent of `rlgl.DrawRenderBatchActive()` in the Raylib backend. Karl2D does NOT cache GL state, so no state invalidation is needed after slug's flush.
+
+### Sokol GFX — external dependency and GLSL 430
+Sokol GFX is NOT an Odin vendor package. It requires `sokol-odin` (github.com/floooh/sokol-odin) provided via `-collection:sokol=`. The backend uses GLSL 430 shaders with uniforms packed into `vec4[]` arrays (matching the sokol-shdc convention). Currently GL-only; cross-platform (Metal/D3D11/WebGPU) would require sokol-shdc integration for pre-compiled shader bytecode.
+
+### Sokol GFX — append_buffer for multi-flush
+Sokol's `sg.update_buffer()` can only be called ONCE per buffer per frame. The Sokol backend uses `sg.append_buffer()` instead, which supports multiple appends per frame. This enables multiple flush calls (e.g. for scissored passes) within a single `sg.begin_pass/end_pass` block. The returned byte offset is passed via `vertex_buffer_offsets`.
+
+### Sokol GFX — no pass management in flush
+The Sokol backend's `flush()` only issues `apply_pipeline / apply_bindings / draw` calls — it does NOT call `sg.begin_pass()` or `sg.end_pass()`. The caller is responsible for pass management. This is different from the Vulkan backend which owns the entire frame lifecycle.
 
 ### Karl2D build — collection path
 Karl2D uses `import k2 "karl2d:karl2d"`. The `-collection:karl2d=` flag must point to the **parent** directory of the karl2d/ folder, not to karl2d/ itself. Example: if Karl2D is at `/home/user/libs/karl2d/`, use `-collection:karl2d=/home/user/libs`.
