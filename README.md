@@ -16,6 +16,8 @@ Slug skips rasterization entirely. The GPU evaluates the actual Bezier curves of
 - Resolution-independent text -- crisp at any size, rotation, or zoom
 - SVG vector icons -- parse SVG paths into the same GPU pipeline as text
 - Background rectangles -- solid-color rects drawn behind text in a single pass
+- Bordered rectangles -- outlined and filled-with-border rects for panels and UI
+- Progress bars -- animated fill with border and centered label overlay
 - GPU scissor clipping -- restrict rendering to screen-space regions
 
 **Text Layout**
@@ -26,6 +28,7 @@ Slug skips rasterization entirely. The GPU evaluates the actual Bezier curves of
 - Text selection -- background highlight over a rune range
 - Letter spacing (tracking), tab stops, line height multiplier
 - Grid layout -- fixed-width cell placement for roguelike maps and tables
+- Columnar layout -- per-column widths and alignment for inventory tables, stat displays
 - Subscript / superscript -- inline sub/super with configurable scale and shift
 
 **Effects**
@@ -37,9 +40,11 @@ Slug skips rasterization entirely. The GPU evaluates the actual Bezier curves of
 **Text Systems**
 - Rich text markup -- `{red:text}`, `{#rrggbb:text}`, `{bg:color:text}`, `{icon:slot:color}`
 - Static text caching -- cache vertex data for unchanged text, draw with a single memcopy
+- Rich text wrapping -- word-wrap markup text in fixed-width panels
+- Rich text scrolling -- scrollable message log with inline colors and markup
 - Scrollable text regions -- viewport-clipped wrapped text with scroll utilities
 - Message log -- timestamped, auto-fading message display for game UI
-- Text input -- cursor positioning by index, click-to-position hit testing
+- Text input -- cursor positioning by index, click-to-position hit testing, blinking cursor
 - Font fallback chains -- automatic glyph lookup across fonts for missing codepoints
 
 **Infrastructure**
@@ -258,6 +263,11 @@ All text drawing, measurement, and effects live in the core package. They work i
 | `draw_text_transformed(ctx, text, x, y, size, color, callback, userdata)` | Per-glyph custom transform |
 | `draw_icon(ctx, slot, x, y, size, color)` | Draw SVG icon centered at position |
 | `draw_rect(ctx, x, y, w, h, color)` | Solid background rectangle (drawn behind text) |
+| `draw_rect_outline(ctx, x, y, w, h, color, thickness?)` | Rectangle outline (4 rects, no corner overlap) |
+| `draw_rect_bordered(ctx, x, y, w, h, fill, border, thickness?)` | Filled rect with border |
+| `draw_bar(ctx, x, y, w, h, value, max, fill, bg, border, label?, size?, color?)` | Progress bar with animated fill and centered label |
+| `draw_cursor(ctx, x, y, h, color, time, blink_rate?)` | Blinking text cursor rectangle |
+| `draw_text_columns(ctx, columns, x, y, size, color)` | Tabular layout with per-column width and alignment |
 
 #### Effects
 
@@ -282,7 +292,7 @@ All text drawing, measurement, and effects live in the core package. They work i
 | Proc | Purpose |
 |------|---------|
 | `measure_text(font, text, size)` | Returns (width, height) in pixels |
-| `measure_text_wrapped(ctx, text, size, max_width)` | Height of wrapped text |
+| `measure_text_wrapped(ctx, text, size, max_width)` | Returns (height, line_count) of wrapped text |
 | `measure_text_styled(ctx, text, style)` | Measure with a Text_Style |
 | `char_advance(font, ch, size)` | Advance width of a single character |
 | `line_height(font, size)` | Vertical distance between lines |
@@ -305,7 +315,9 @@ Inline markup format: `{color:text}`, `{#rrggbb:text}`, `{bg:color:text}`, `{ico
 |------|---------|
 | `draw_rich_text(ctx, text, x, y, size, default_color)` | Draw with inline markup |
 | `draw_rich_text_centered(ctx, text, x, y, size, default_color)` | Centered rich text |
+| `draw_rich_text_wrapped(ctx, text, x, y, size, max_width, color, line_spacing?)` | Word-wrapped rich text, returns (height, lines) |
 | `measure_rich_text(font, text, size)` | Measure with markup stripped |
+| `measure_rich_text_wrapped(ctx, text, size, max_width)` | Returns (height, lines) for wrapped rich text |
 | `rich_text_plain_length(text)` | Plain text byte length |
 
 #### Scrollable Text
@@ -314,6 +326,7 @@ Inline markup format: `{color:text}`, `{#rrggbb:text}`, `{bg:color:text}`, `{ico
 |-------------|---------|
 | `Scroll_Region` | Struct: x, y, width, height, scroll_offset |
 | `draw_text_scrolled(ctx, text, &region, size, color)` | Viewport-clipped wrapped text |
+| `draw_rich_text_scrolled(ctx, text, &region, size, color)` | Viewport-clipped wrapped rich text with markup |
 | `scroll_by(&region, delta, content_height)` | Apply scroll delta with clamping |
 | `scroll_clamp(&region, content_height)` | Clamp offset to valid range |
 | `scroll_fraction(&region, content_height)` | Scroll position as 0.0--1.0 |
@@ -613,16 +626,13 @@ Built with **Claude Code** (Anthropic's Claude). I provided direction, architect
 - [x] Kerning, letter spacing (tracking), tab stops, line spacing multiplier
 - [x] Subscript/superscript, grid layout (CP437), independent decoration colors
 - [x] 6 backends: OpenGL, Raylib, Vulkan, SDL3 GPU, Karl2D, Sokol GFX
+- [x] Bordered rectangles, progress bars, blinking cursor
+- [x] Rich text wrapping and scrolling with word-wrap + markup
+- [x] Columnar layout with per-column widths and alignment
+- [x] Wrapped text line count for auto-sizing panels
 
-### Post-v1.0 — Roguelike UI Essentials
+### Post-v1.0
 
-- [ ] Outlined / bordered rectangles -- panel frames, tooltip borders, dialog boxes
-- [ ] Rich text wrapping -- word-wrap `{red:text}` markup in fixed-width panels
-- [ ] Rich text scrolling -- scrollable message log with inline colors
-- [ ] Cursor rendering -- blinking text cursor for input fields
-- [ ] Progress / stat bars -- HP/MP/XP bars with label overlay
-- [ ] Wrapped text line count -- auto-size panels, pagination
-- [ ] Columnar layout -- per-column widths and alignment for tables
 - [ ] Clipped rich text -- scissor integration with text draw procs
 
 ### Later
