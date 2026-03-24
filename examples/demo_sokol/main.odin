@@ -97,6 +97,9 @@ PANEL_CACHED_Y :: f32(PANEL_Y + 161)
 
 SERIF_LINE_Y :: f32(PANEL_Y + PANEL_H + 25)
 
+ROW_TRACKING :: f32(SERIF_LINE_Y + 30)
+ROW_TABS :: f32(ROW_TRACKING + 28)
+
 // ---- Center column (x=420..760): animated effects ----
 
 ICONS_X :: f32(420)
@@ -130,6 +133,7 @@ ZOOM_Y :: f32(250)
 
 TRUNCATE_Y :: f32(315)
 TRUNCATE_MAX_W :: f32(240)
+TRUNCATE_WORD_Y :: f32(345)
 
 GRID_Y :: f32(380)
 
@@ -142,6 +146,8 @@ FALLBACK_Y :: f32(163)
 
 JUSTIFY_Y :: f32(196)
 JUSTIFY_W :: f32(380)
+
+SELECTION_Y :: f32(228)
 
 WRAP_W :: f32(420)
 WRAP_Y :: f32(425)
@@ -183,10 +189,12 @@ STYLE_STRIKE :: slug.Text_Style {
 	strikethrough = true,
 }
 STYLE_BOTH :: slug.Text_Style {
-	size          = SMALL_SIZE,
-	color         = COLOR_CYAN,
-	underline     = true,
-	strikethrough = true,
+	size                = SMALL_SIZE,
+	color               = COLOR_CYAN,
+	underline           = true,
+	strikethrough       = true,
+	underline_color     = {1.0, 0.3, 0.3, 1.0},
+	strikethrough_color = {1.0, 0.9, 0.3, 1.0},
 }
 
 // ===================================================
@@ -207,6 +215,9 @@ state: struct {
 	mouse_x:       f32,
 	mouse_y:       f32,
 	mouse_clicked: bool, // left button just pressed
+	mid_held:      bool, // middle button held for camera drag
+	prev_mouse_x:  f32,
+	prev_mouse_y:  f32,
 	scroll_accum:  f32,
 
 	// Camera
@@ -313,6 +324,7 @@ init_cb :: proc "c" () {
 		}
 		slug.font_load_ascii(&font0)
 		slug.font_load_range(&font0, 160, 255)
+		slug.font_load_glyph(&font0, '☺') // CP437 smiley for grid demo
 		slug.svg_load_into_font(&font0, ICON_SWORD, ICON_SWORD_PATH)
 		slug.svg_load_into_font(&font0, ICON_HEART, ICON_HEART_PATH)
 		slug.svg_load_into_font(&font0, ICON_SHIELD, ICON_SHIELD_PATH)
@@ -385,6 +397,14 @@ frame_cb :: proc "c" () {
 	if state.keys_held[sapp.Keycode.S] do state.cam_y += CAMERA_SPEED * dt
 	if state.keys_held[sapp.Keycode.A] do state.cam_x -= CAMERA_SPEED * dt
 	if state.keys_held[sapp.Keycode.D] do state.cam_x += CAMERA_SPEED * dt
+
+	// Camera pan — middle mouse drag
+	if state.mid_held {
+		state.cam_x += state.mouse_x - state.prev_mouse_x
+		state.cam_y += state.mouse_y - state.prev_mouse_y
+	}
+	state.prev_mouse_x = state.mouse_x
+	state.prev_mouse_y = state.mouse_y
 
 	// Camera reset
 	if state.keys_held[sapp.Keycode.R] {
@@ -485,6 +505,12 @@ frame_cb :: proc "c" () {
 	slug.draw_text(ctx, "Multi-font: Liberation Serif (slot 1)", LEFT_X, SERIF_LINE_Y, SMALL_SIZE, {0.9, 0.8, 0.6, 1.0})
 	slug.use_font(ctx, 0)
 
+	// Letter spacing (tracking)
+	slug.draw_text(ctx, "W i d e  tracking", LEFT_X, ROW_TRACKING, SMALL_SIZE, {0.7, 0.8, 1.0, 1.0}, tracking = 4.0)
+
+	// Tab stops
+	slug.draw_text(ctx, "Name\tHP\tMP", LEFT_X, ROW_TABS, SMALL_SIZE, {0.7, 1.0, 0.7, 1.0})
+
 	// ---- Center column ----
 
 	slug.draw_icon(ctx, ICON_SWORD, ICONS_X, ICONS_Y, ICON_SIZE, COLOR_YELLOW)
@@ -531,11 +557,22 @@ frame_cb :: proc "c" () {
 	slug.draw_text(ctx, "Zoom!", RIGHT_X + 10, ZOOM_Y, f32(pulse_size), {1.0, 0.5, 0.3, 1.0})
 
 	slug.draw_text(ctx, "clip:", RIGHT_X + 10, TRUNCATE_Y - 18, 12, {0.4, 0.4, 0.5, 1.0})
-	slug.draw_text_truncated(ctx, "This long name gets clipped with an ellipsis", RIGHT_X + 10, TRUNCATE_Y, SMALL_SIZE, TRUNCATE_MAX_W, COLOR_WHITE)
+	slug.draw_text_truncated(ctx, "This long name gets clipped with an ellipsis", RIGHT_X + 10, TRUNCATE_Y, SMALL_SIZE, TRUNCATE_MAX_W, COLOR_WHITE, ellipsis = " [...]")
+
+	// Word-boundary truncation
+	slug.draw_text_truncated_word(
+		ctx,
+		"Word-boundary truncation clips at spaces",
+		RIGHT_X + 10,
+		TRUNCATE_WORD_Y,
+		SMALL_SIZE,
+		TRUNCATE_MAX_W,
+		{0.8, 0.8, 0.6, 1.0},
+	)
 
 	grid_cell_w := slug.mono_width(font, SMALL_SIZE)
 	grid_cell_h := slug.line_height(font, SMALL_SIZE)
-	slug.draw_text_grid(ctx, "##.@..g..##\n##..:)...##", RIGHT_X, GRID_Y, SMALL_SIZE, grid_cell_w, grid_cell_h, COLOR_CYAN)
+	slug.draw_text_grid(ctx, "##.@..g..##\n##..☺....##", RIGHT_X, GRID_Y, SMALL_SIZE, grid_cell_w, grid_cell_h, COLOR_CYAN)
 	slug.draw_text(ctx, fmt.tprintf("cell: %.0fx%.0fpx", grid_cell_w, grid_cell_h), RIGHT_X, GRID_Y + grid_cell_h * 2 + 4, 13, {0.5, 0.5, 0.7, 1.0})
 
 	slug.draw_text(ctx, "Left-aligned", ALIGN_X, ALIGN_Y0, SMALL_SIZE, {0.8, 0.6, 0.6, 1.0})
@@ -545,7 +582,20 @@ frame_cb :: proc "c" () {
 	slug.draw_text(ctx, "Fallback: \u015e \u017e \u0150 \u0119 \u013a (font 0 \u2192 serif)", RIGHT_X, FALLBACK_Y, SMALL_SIZE, {0.7, 0.9, 0.7, 1.0})
 	slug.draw_text_justified(ctx, "Word justification fills the column width exactly.", RIGHT_X, JUSTIFY_Y, SMALL_SIZE, JUSTIFY_W, {0.9, 0.8, 0.6, 1.0})
 
-	slug.draw_text_wrapped(ctx, WRAP_TEXT, RIGHT_X + WRAP_PAD, WRAP_Y + WRAP_PAD, SMALL_SIZE, WRAP_W - WRAP_PAD * 2, COLOR_WHITE)
+	// Text selection range highlight
+	slug.draw_text_selection(
+		ctx,
+		"Select range demo",
+		RIGHT_X,
+		SELECTION_Y,
+		SMALL_SIZE,
+		COLOR_WHITE,
+		7,
+		12,
+		{0.2, 0.3, 0.8, 0.6},
+	)
+
+	slug.draw_text_wrapped(ctx, WRAP_TEXT, RIGHT_X + WRAP_PAD, WRAP_Y + WRAP_PAD, SMALL_SIZE, WRAP_W - WRAP_PAD * 2, COLOR_WHITE, line_spacing = 1.4)
 
 	slug.draw_rect(ctx, state.scroll_region.x, state.scroll_region.y, state.scroll_region.width, state.scroll_region.height, {0.12, 0.12, 0.20, 1.0})
 	slug.draw_text_scrolled(ctx, SCROLL_TEXT, &state.scroll_region, SMALL_SIZE, {0.8, 0.8, 0.9, 1.0})
@@ -556,7 +606,7 @@ frame_cb :: proc "c" () {
 
 	slug.draw_text(
 		ctx,
-		fmt.tprintf("Scale: %.2fx [Up/Down/Wheel/Tab]  Cam: %.0f,%.0f [WASD  R=reset]", ctx.ui_scale, state.cam_x, state.cam_y),
+		fmt.tprintf("Scale: %.2fx [Up/Down/Wheel/Tab]  Cam: %.0f,%.0f [WASD/MMB  R=reset]", ctx.ui_scale, state.cam_x, state.cam_y),
 		10,
 		SCALE_Y,
 		16,
@@ -611,6 +661,13 @@ event_cb :: proc "c" (event: ^sapp.Event) {
 	case .MOUSE_DOWN:
 		if event.mouse_button == .LEFT {
 			state.mouse_clicked = true
+		}
+		if event.mouse_button == .MIDDLE {
+			state.mid_held = true
+		}
+	case .MOUSE_UP:
+		if event.mouse_button == .MIDDLE {
+			state.mid_held = false
 		}
 	case .MOUSE_MOVE:
 		state.mouse_x = event.mouse_x

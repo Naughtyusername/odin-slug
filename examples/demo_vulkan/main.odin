@@ -94,6 +94,8 @@ PANEL_WOBBLE_Y :: f32(PANEL_Y + 108) // 576
 PANEL_CACHED_Y :: f32(PANEL_Y + 161) // 629
 
 SERIF_LINE_Y :: f32(PANEL_Y + PANEL_H + 25) // 703
+ROW_TRACKING :: f32(SERIF_LINE_Y + 30)
+ROW_TABS :: f32(ROW_TRACKING + 28)
 
 // ---- Center column (x=420..760): animated effects ----
 
@@ -130,6 +132,7 @@ ZOOM_Y :: f32(250) // pulsing-size "Zoom!" text — shifted down so ascenders do
 
 TRUNCATE_Y :: f32(315) // truncated text demo
 TRUNCATE_MAX_W :: f32(240) // clip boundary in pixels
+TRUNCATE_WORD_Y :: f32(345) // word-boundary truncation demo
 
 GRID_Y :: f32(380) // monospace grid demo
 
@@ -142,6 +145,8 @@ FALLBACK_Y :: f32(163) // fallback chain demo (sans + auto-serif for missing cod
 
 JUSTIFY_Y :: f32(196) // justified alignment demo
 JUSTIFY_W :: f32(380) // column width — text expands to fill this exactly
+
+SELECTION_Y :: f32(228) // text selection range highlight demo
 
 WRAP_W :: f32(420)
 WRAP_Y :: f32(425)
@@ -187,10 +192,12 @@ STYLE_STRIKE :: slug.Text_Style {
 	strikethrough = true,
 }
 STYLE_BOTH :: slug.Text_Style {
-	size          = SMALL_SIZE,
-	color         = COLOR_CYAN,
-	underline     = true,
-	strikethrough = true,
+	size                = SMALL_SIZE,
+	color               = COLOR_CYAN,
+	underline           = true,
+	strikethrough       = true,
+	underline_color     = {1.0, 0.3, 0.3, 1.0},
+	strikethrough_color = {1.0, 0.9, 0.3, 1.0},
 }
 
 Wave_Hue_State :: struct {
@@ -257,6 +264,7 @@ main :: proc() {
 		}
 		slug.font_load_ascii(&font0)
 		slug.font_load_range(&font0, 160, 255)
+		slug.font_load_glyph(&font0, '☺') // CP437 smiley for grid demo
 		slug.svg_load_into_font(&font0, ICON_SWORD, ICON_SWORD_PATH)
 		slug.svg_load_into_font(&font0, ICON_HEART, ICON_HEART_PATH)
 		slug.svg_load_into_font(&font0, ICON_SHIELD, ICON_SHIELD_PATH)
@@ -610,6 +618,12 @@ main :: proc() {
 		)
 		slug.use_font(ctx, 0)
 
+		// Letter spacing (tracking)
+		slug.draw_text(ctx, "W i d e  tracking", LEFT_X, ROW_TRACKING, SMALL_SIZE, {0.7, 0.8, 1.0, 1.0}, tracking = 4.0)
+
+		// Tab stops
+		slug.draw_text(ctx, "Name\tHP\tMP", LEFT_X, ROW_TABS, SMALL_SIZE, {0.7, 1.0, 0.7, 1.0})
+
 		// ---- Center column ----
 
 		// SVG icons
@@ -754,6 +768,18 @@ main :: proc() {
 			SMALL_SIZE,
 			TRUNCATE_MAX_W,
 			COLOR_WHITE,
+			ellipsis = " [...]",
+		)
+
+		// Word-boundary truncation: backs up to last space
+		slug.draw_text_truncated_word(
+			ctx,
+			"Word-boundary truncation clips at spaces",
+			RIGHT_X + 10,
+			TRUNCATE_WORD_Y,
+			SMALL_SIZE,
+			TRUNCATE_MAX_W,
+			{0.8, 0.8, 0.6, 1.0},
 		)
 
 		// Fixed-width grid: roguelike map row, each char centered in its cell
@@ -761,7 +787,7 @@ main :: proc() {
 		grid_cell_h := slug.line_height(font, SMALL_SIZE)
 		slug.draw_text_grid(
 			ctx,
-			"##.@..g..##\n##..:)...##",
+			"##.@..g..##\n##..☺....##",
 			RIGHT_X,
 			GRID_Y,
 			SMALL_SIZE,
@@ -818,6 +844,19 @@ main :: proc() {
 			{0.9, 0.8, 0.6, 1.0},
 		)
 
+		// Text selection range highlight
+		slug.draw_text_selection(
+			ctx,
+			"Select range demo",
+			RIGHT_X,
+			SELECTION_Y,
+			SMALL_SIZE,
+			COLOR_WHITE,
+			7,
+			12,
+			{0.2, 0.3, 0.8, 0.6},
+		)
+
 		// Word wrap
 		WRAP_TEXT :: "The ancient scroll reads: You have defeated the Skeleton King and earned 250 gold. Your sword glows with newfound power."
 		slug.draw_text_wrapped(
@@ -828,6 +867,7 @@ main :: proc() {
 			SMALL_SIZE,
 			WRAP_W - WRAP_PAD * 2,
 			COLOR_WHITE,
+			line_spacing = 1.4,
 		)
 
 		// Scroll region background + content

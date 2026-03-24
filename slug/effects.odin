@@ -55,6 +55,7 @@ draw_text_rainbow :: proc(
 		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
+			char_idx += 1
 			continue
 		}
 
@@ -104,6 +105,7 @@ draw_text_wobble :: proc(
 		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
+			char_idx += 1
 			continue
 		}
 
@@ -149,6 +151,7 @@ draw_text_shake :: proc(
 		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
+			char_idx += 1
 			continue
 		}
 
@@ -496,6 +499,7 @@ draw_text_pulse :: proc(
 		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
+			char_idx += 1
 			continue
 		}
 

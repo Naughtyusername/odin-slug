@@ -57,18 +57,30 @@ mono_width :: proc(font: ^Font, font_size: f32) -> f32 {
 // Uses the specified font only — does not follow fallback chains.
 // Results will not account for glyphs resolved via font_set_fallback.
 // For fallback-aware layout, measure each font segment separately.
+// tracking adds extra horizontal space (in pixels) after each character.
 measure_text :: proc(
 	font: ^Font,
 	text: string,
 	font_size: f32,
 	use_kerning: bool = true,
+	tracking: f32 = 0,
 ) -> (
 	width: f32,
 	height: f32,
 ) {
 	pen_x: f32 = 0
 	prev_rune: rune = 0
+
+	// Tab stop width: 4 space advances
+	space_g := get_glyph(font, ' ')
+	tab_width := (space_g.advance_width if space_g != nil else 0.5) * font_size * 4
+
 	for ch in text {
+		if ch == '\t' {
+			pen_x = f32(int(pen_x / tab_width) + 1) * tab_width
+			prev_rune = 0
+			continue
+		}
 		g := get_glyph(font, ch)
 		if g == nil {
 			prev_rune = ch
@@ -77,7 +89,7 @@ measure_text :: proc(
 		if use_kerning && prev_rune != 0 {
 			pen_x += font_get_kerning(font, prev_rune, ch) * font_size
 		}
-		pen_x += g.advance_width * font_size
+		pen_x += g.advance_width * font_size + tracking
 		prev_rune = ch
 	}
 	return pen_x, (font.ascent - font.descent) * font_size
@@ -188,6 +200,8 @@ text_hit_test :: proc(
 
 // Draw a string of text at the given position and size.
 // x, y is the baseline-left position. font_size is the em-square height in pixels.
+// Tab characters (\t) snap the pen to the next tab stop (every 4 space widths).
+// tracking adds extra horizontal space (in pixels) after each character.
 draw_text :: proc(
 	ctx: ^Context,
 	text: string,
@@ -195,13 +209,26 @@ draw_text :: proc(
 	font_size: f32,
 	color: Color,
 	use_kerning: bool = true,
+	tracking: f32 = 0,
 ) {
 	font := active_font(ctx)
 	pen_x := x
 
+	// Tab stop width: 4 space advances
+	space_g := get_glyph(font, ' ')
+	tab_width := (space_g.advance_width if space_g != nil else 0.5) * font_size * 4
+
 	prev_rune: rune = 0
 
 	for ch in text {
+		// Tab: snap pen to next tab stop
+		if ch == '\t' {
+			rel := pen_x - x
+			pen_x = x + (f32(int(rel / tab_width) + 1) * tab_width)
+			prev_rune = 0
+			continue
+		}
+
 		g := get_glyph_fallback(ctx, ch)
 		if g == nil {
 			prev_rune = ch
@@ -223,7 +250,7 @@ draw_text :: proc(
 			emit_glyph_quad(ctx, g, glyph_x, glyph_y, glyph_w, glyph_h, color)
 		}
 
-		pen_x += g.advance_width * font_size
+		pen_x += g.advance_width * font_size + tracking
 		prev_rune = ch
 	}
 }
@@ -293,10 +320,11 @@ draw_text_super :: proc(ctx: ^Context, text: string, x, y, font_size: f32, color
 	draw_text(ctx, text, x, y - font_size * SUPER_SHIFT, font_size * SUB_SCALE, color)
 }
 
-// Draw text clipped to max_width pixels, appending "..." when truncated.
+// Draw text clipped to max_width pixels, appending an ellipsis when truncated.
 // The ellipsis width is reserved from the budget first, so the total rendered
 // width always fits within max_width. If there is no room for any characters
 // before the ellipsis, the ellipsis alone is drawn.
+// ellipsis defaults to "..." but can be customized (e.g. "…", "- ", or "" for hard clip).
 // Returns the pixel width actually drawn (useful for follow-on layout).
 //
 // Example:
@@ -310,6 +338,7 @@ draw_text_truncated :: proc(
 	max_width: f32,
 	color: Color,
 	use_kerning: bool = true,
+	ellipsis: string = "...",
 ) -> f32 {
 	font := active_font(ctx)
 
@@ -320,13 +349,17 @@ draw_text_truncated :: proc(
 		return full_w
 	}
 
-	ELLIPSIS :: "..."
-	ellipsis_w, _ := measure_text(font, ELLIPSIS, font_size)
+	ellipsis_w: f32 = 0
+	if len(ellipsis) > 0 {
+		ellipsis_w, _ = measure_text(font, ellipsis, font_size)
+	}
 	budget := max_width - ellipsis_w
 
 	if budget <= 0 {
 		// No room for any chars before the ellipsis
-		draw_text(ctx, ELLIPSIS, x, y, font_size, color)
+		if len(ellipsis) > 0 {
+			draw_text(ctx, ellipsis, x, y, font_size, color)
+		}
 		return ellipsis_w
 	}
 
@@ -350,8 +383,92 @@ draw_text_truncated :: proc(
 	}
 
 	draw_text(ctx, text[:byte_end], x, y, font_size, color, use_kerning)
-	draw_text(ctx, ELLIPSIS, x + pen_x, y, font_size, color)
+	draw_text(ctx, ellipsis, x + pen_x, y, font_size, color)
 	return pen_x + ellipsis_w
+}
+
+// Draw truncated text that breaks at word boundaries instead of mid-character.
+// Same as draw_text_truncated but backs up to the last space before the budget.
+// If the first word alone exceeds the budget, falls back to character truncation
+// to avoid showing an empty string with just an ellipsis.
+//
+// Example:
+//   slug.draw_text_truncated_word(ctx, "The quick brown fox", x, y, size, 200, color)
+//   // Might render: "The quick brown..." instead of "The quick bro..."
+draw_text_truncated_word :: proc(
+	ctx: ^Context,
+	text: string,
+	x, y: f32,
+	font_size: f32,
+	max_width: f32,
+	color: Color,
+	use_kerning: bool = true,
+	ellipsis: string = "...",
+) -> f32 {
+	font := active_font(ctx)
+
+	// Fast path: text fits as-is
+	full_w, _ := measure_text(font, text, font_size, use_kerning)
+	if full_w <= max_width {
+		draw_text(ctx, text, x, y, font_size, color, use_kerning)
+		return full_w
+	}
+
+	ellipsis_w: f32 = 0
+	if len(ellipsis) > 0 {
+		ellipsis_w, _ = measure_text(font, ellipsis, font_size)
+	}
+	budget := max_width - ellipsis_w
+
+	if budget <= 0 {
+		if len(ellipsis) > 0 {
+			draw_text(ctx, ellipsis, x, y, font_size, color)
+		}
+		return ellipsis_w
+	}
+
+	// Walk characters, tracking the last space boundary
+	pen_x: f32 = 0
+	prev_rune: rune = 0
+	byte_end := 0
+	last_space_byte := -1
+	last_space_pen: f32 = 0
+
+	for ch, i in text {
+		g := get_glyph_fallback(ctx, ch)
+		kern: f32 = 0
+		if g != nil && use_kerning && prev_rune != 0 {
+			kern = font_get_kerning(font, prev_rune, ch) * font_size
+		}
+		advance := kern + (g.advance_width * font_size if g != nil else 0)
+		if pen_x + advance > budget do break
+		pen_x += advance
+		_, ch_size := utf8.decode_rune_in_string(text[i:])
+		byte_end = i + ch_size
+		if ch == ' ' {
+			last_space_byte = i
+			last_space_pen = pen_x
+		}
+		prev_rune = ch
+	}
+
+	// If we found a word boundary, use it; otherwise fall back to char truncation
+	draw_end := byte_end
+	draw_pen := pen_x
+	if last_space_byte > 0 {
+		draw_end = last_space_byte
+		draw_pen = last_space_pen
+		// Trim trailing spaces before the ellipsis
+		for draw_end > 0 && text[draw_end - 1] == ' ' {
+			draw_end -= 1
+			// Re-measure trimmed text for accurate pen position
+		}
+		draw_pen, _ = measure_text(font, text[:draw_end], font_size, use_kerning)
+	}
+
+	draw_text(ctx, text[:draw_end], x, y, font_size, color, use_kerning)
+	draw_text(ctx, ellipsis, x + draw_pen, y, font_size, color)
+	return draw_pen + ellipsis_w
 }
 
 // Draw text with automatic word wrapping within max_width pixels.
@@ -368,9 +485,10 @@ draw_text_wrapped :: proc(
 	max_width: f32,
 	color: Color,
 	use_kerning: bool = true,
+	line_spacing: f32 = 1.0,
 ) -> f32 {
 	font := active_font(ctx)
-	lh := line_height(font, font_size)
+	lh := line_height(font, font_size) * line_spacing
 	space_w := char_advance(font, ' ', font_size)
 
 	// Height of a single text line (ascent - descent), without inter-line gap.
@@ -447,9 +565,10 @@ measure_text_wrapped :: proc(
 	font_size: f32,
 	max_width: f32,
 	use_kerning: bool = true,
+	line_spacing: f32 = 1.0,
 ) -> f32 {
 	font := active_font(ctx)
-	lh := line_height(font, font_size)
+	lh := line_height(font, font_size) * line_spacing
 	space_w := char_advance(font, ' ', font_size)
 	text_line_h := (font.ascent - font.descent) * font_size
 
@@ -636,6 +755,37 @@ draw_text_highlighted :: proc(
 	draw_text(ctx, text, x, y, font_size, text_color, use_kerning)
 }
 
+// Draw text with a highlight rectangle behind a sub-range of characters.
+// sel_start and sel_end are 0-based rune indices — the highlight covers
+// characters [sel_start, sel_end). If the range is empty or invalid, draws
+// plain text with no highlight.
+//
+// Uses cursor_x_from_index to compute pixel offsets, so kerning is respected.
+// The highlight rect spans the full line height (ascent to descent).
+//
+// Example — highlight characters 5..10 in a string:
+//   slug.draw_text_selection(ctx, "Hello World!", x, y, size, slug.WHITE, 5, 10, slug.Color{0.2, 0.2, 0.8, 0.5})
+draw_text_selection :: proc(
+	ctx: ^Context,
+	text: string,
+	x, y: f32,
+	font_size: f32,
+	text_color: Color,
+	sel_start, sel_end: int,
+	sel_color: Color,
+	use_kerning: bool = true,
+) {
+	if sel_start < sel_end {
+		font := active_font(ctx)
+		x0 := cursor_x_from_index(font, text, font_size, sel_start, use_kerning)
+		x1 := cursor_x_from_index(font, text, font_size, sel_end, use_kerning)
+		h := (font.ascent - font.descent) * font_size
+		rect_y := y - font.ascent * font_size
+		draw_rect(ctx, x + x0, rect_y, x1 - x0, h, sel_color)
+	}
+	draw_text(ctx, text, x, y, font_size, text_color, use_kerning)
+}
+
 // Draw text with an underline at the standard typographic position.
 // The underline sits ~10% of the em-square below the baseline, with a
 // thickness of ~5% of the em-square (minimum 1px, snapped to nearest pixel
@@ -650,12 +800,14 @@ draw_text_underlined :: proc(
 	font_size: f32,
 	color: Color,
 	use_kerning: bool = true,
+	line_color: Color = TRANSPARENT,
 ) {
 	font := active_font(ctx)
 	w, _      := measure_text(font, text, font_size, use_kerning)
 	thickness := max(math.round(font_size * 0.05), 1.0)
 	line_y    := y + font_size * 0.1
-	draw_rect(ctx, x, line_y, w, thickness, color)
+	lc := line_color if line_color.a > 0 else color
+	draw_rect(ctx, x, line_y, w, thickness, lc)
 	draw_text(ctx, text, x, y, font_size, color, use_kerning)
 }
 
@@ -672,12 +824,14 @@ draw_text_strikethrough :: proc(
 	font_size: f32,
 	color: Color,
 	use_kerning: bool = true,
+	line_color: Color = TRANSPARENT,
 ) {
 	font := active_font(ctx)
 	w, _      := measure_text(font, text, font_size, use_kerning)
 	thickness := max(math.round(font_size * 0.05), 1.0)
 	line_y    := y - font_size * 0.3
-	draw_rect(ctx, x, line_y, w, thickness, color)
+	lc := line_color if line_color.a > 0 else color
+	draw_rect(ctx, x, line_y, w, thickness, lc)
 	draw_text(ctx, text, x, y, font_size, color, use_kerning)
 }
 
@@ -703,10 +857,12 @@ draw_text_styled :: proc(
 	thickness := max(math.round(style.size * 0.05), 1.0)
 
 	if style.underline {
-		draw_rect(ctx, x, y + style.size * 0.1, w, thickness, style.color)
+		uc := style.underline_color if style.underline_color.a > 0 else style.color
+		draw_rect(ctx, x, y + style.size * 0.1, w, thickness, uc)
 	}
 	if style.strikethrough {
-		draw_rect(ctx, x, y - style.size * 0.3, w, thickness, style.color)
+		sc := style.strikethrough_color if style.strikethrough_color.a > 0 else style.color
+		draw_rect(ctx, x, y - style.size * 0.3, w, thickness, sc)
 	}
 	draw_text(ctx, text, x, y, style.size, style.color, use_kerning)
 

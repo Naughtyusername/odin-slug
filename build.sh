@@ -50,6 +50,9 @@ do_check() {
     odin check slug/backends/karl2d/ -no-entry-point
     echo "Karl2D backend: OK"
 
+    if [ -z "$SOKOL_PATH" ] && [ -d "$SCRIPT_DIR/../sokol-odin/sokol" ]; then
+        SOKOL_PATH="$(cd "$SCRIPT_DIR/../sokol-odin/sokol" && pwd)"
+    fi
     if [ -n "$SOKOL_PATH" ]; then
         echo "=== Checking Sokol backend ==="
         odin check slug/backends/sokol/ -no-entry-point -collection:sokol="$SOKOL_PATH"
@@ -105,9 +108,15 @@ do_build_sdl3gpu() {
 do_build_karl2d() {
     echo "=== Building Karl2D demo ==="
     if [ -z "$KARL2D_PATH" ]; then
-        echo "Error: KARL2D_PATH not set. Set it to the PARENT directory of karl2d/."
-        echo "  export KARL2D_PATH=/path/to  (where /path/to/karl2d/ exists)"
-        exit 1
+        # Auto-detect: sibling directory ../karl2d
+        if [ -d "$SCRIPT_DIR/../karl2d" ]; then
+            KARL2D_PATH="$(cd "$SCRIPT_DIR/.." && pwd)"
+        else
+            echo "Error: KARL2D_PATH not set and ../karl2d not found."
+            echo "  Clone it:  git clone https://github.com/karl-zylinski/karl2d.git ../karl2d"
+            echo "  Or set:    export KARL2D_PATH=/path/to  (parent dir of karl2d/)"
+            exit 1
+        fi
     fi
     odin build examples/demo_karl2d/ -out:demo_karl2d -collection:libs=. -collection:karl2d="$KARL2D_PATH"
     echo "Built: ./demo_karl2d"
@@ -116,9 +125,15 @@ do_build_karl2d() {
 do_build_sokol() {
     echo "=== Building Sokol GFX demo ==="
     if [ -z "$SOKOL_PATH" ]; then
-        echo "Error: SOKOL_PATH not set. Set it to the sokol/ subdir in a sokol-odin clone."
-        echo "  export SOKOL_PATH=/path/to/sokol-odin/sokol"
-        exit 1
+        # Auto-detect: sibling directory ../sokol-odin/sokol
+        if [ -d "$SCRIPT_DIR/../sokol-odin/sokol" ]; then
+            SOKOL_PATH="$(cd "$SCRIPT_DIR/../sokol-odin/sokol" && pwd)"
+        else
+            echo "Error: SOKOL_PATH not set and ../sokol-odin/sokol not found."
+            echo "  Clone it:  git clone https://github.com/floooh/sokol-odin.git ../sokol-odin"
+            echo "  Or set:    export SOKOL_PATH=/path/to/sokol-odin/sokol"
+            exit 1
+        fi
     fi
     odin build examples/demo_sokol/ -out:demo_sokol -collection:libs=. -collection:sokol="$SOKOL_PATH"
     echo "Built: ./demo_sokol"

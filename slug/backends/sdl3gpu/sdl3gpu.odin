@@ -375,7 +375,8 @@ load_font :: proc(r: ^Renderer, slot: int, path: string) -> bool {
 	if !font_ok do return false
 
 	slug.register_font(&r.ctx, slot, font)
-	slug.font_load_ascii(&r.ctx.fonts[slot])
+	loaded := slug.font_load_ascii(&r.ctx.fonts[slot])
+	if loaded == 0 do return false
 
 	pack := slug.font_process(&r.ctx.fonts[slot])
 	defer slug.pack_result_destroy(&pack)

@@ -34,9 +34,10 @@ draw_text_scrolled :: proc(
 	font_size: f32,
 	color: Color,
 	use_kerning: bool = true,
+	line_spacing: f32 = 1.0,
 ) -> f32 {
 	font := active_font(ctx)
-	lh := line_height(font, font_size)
+	lh := line_height(font, font_size) * line_spacing
 	space_w := char_advance(font, ' ', font_size)
 	text_line_h := (font.ascent - font.descent) * font_size
 	ascent_px := font.ascent * font_size
