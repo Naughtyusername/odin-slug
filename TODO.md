@@ -3,7 +3,7 @@
 Tracks both the feature roadmap and polish/cleanup work.
 Update after each session.
 
-Last updated: 2026-03-23 (session 7)
+Last updated: 2026-03-23 (session 8)
 
 ---
 
@@ -24,6 +24,7 @@ Last updated: 2026-03-23 (session 7)
 - [x] Zoom toggle + mouse wheel zoom (Tab snaps 1.0x↔0.6x; wheel zooms when not over scroll region; clamped to [0.25, 3.0]x)
 - [x] Grid rendering mode / CP437 (`draw_text_grid`; fixed-width cells, bbox-centered; `\n` row advance)
 - [x] Message log widget (`Message_Log`, `log_push`, `draw_message_log`; fixed-size ring buffer, age-based fade, no dynamic allocation)
+- [x] **#22** — Camera/viewport bugs fixed: Raylib shapes now offset by cam_x/cam_y; scroll region hover check converts mouse to world space in all 3 demos; band epsilon (1/1024 em-space) added to glyph processing
 
 ---
 
@@ -44,17 +45,6 @@ Last updated: 2026-03-23 (session 7)
 ## Feature Roadmap
 
 ### Up Next
-- [ ] **#22 — Camera/viewport bugs (Raylib + OpenGL demos)**
-      Raylib-drawn shapes (panel bg, circle, box outlines, scroll region bg, scissor box)
-      use raw screen coords and don't move with camera pan. Slug text does move because
-      camera offset is applied in vertex emitters. Fix: offset all Raylib/GL shape draw
-      calls by cam_x/cam_y so the entire canvas pans together.
-      Also: scroll region mouse-hover check doesn't account for camera offset — scrolling
-      inside a text box moves the viewport instead when panned. Fix: subtract cam offset
-      from mouse coords before the scroll-region bounds check, or capture cursor context
-      when hovering over interactive regions so scroll always wins inside bounds.
-      Vulkan demo is correct (reference implementation). Port fixes to Raylib + OpenGL.
-
 - [ ] **#21 — Viewport zoom (zoom toward cursor)**
       Currently `ui_scale` only scales font sizes — positions are fixed, so zoom doesn't
       follow the cursor. True viewport zoom needs a `zoom` factor in `Context` applied to
@@ -77,6 +67,37 @@ Last updated: 2026-03-23 (session 7)
       Karl Zylinski's pure-Odin 2D library (zero C deps). Primary target for the roguelike project.
       Integration notes in `docs/KARL2D_INTEGRATION.md`. Has OpenGL, D3D11, and Metal backends.
       Needs `flush(scissor)` support via the underlying GL/D3D11/Metal scissor APIs.
+
+### Slug Algorithm Optimizations (from Eric Lengyel's tips)
+*These improve texture size and cache performance. Correctness is already handled.*
+
+- [ ] **#23 — Curve texture endpoint sharing**
+      Connected curves in a contour share an endpoint (p3 of curve N = p1 of curve N+1).
+      Currently each curve writes 2 independent texels (`2 * num_curves` per glyph).
+      With sharing, contours use `num_curves + 1` texels — ~50% curve texture reduction.
+      Requires tracking contour boundaries during `font_load_glyph` and reworking
+      `pack_glyph_textures` to emit shared texels. Band data curve coordinates still work
+      since they point by explicit (x,y) into the curve texture.
+
+- [ ] **#24 — Horizontal/vertical line filtering**
+      Straight horizontal lines should be excluded from horizontal bands, and straight
+      vertical lines from vertical bands — they can't contribute to the winding number
+      for rays parallel to them. Currently `CalcRootCode` in the shader filters them at
+      runtime (returns 0), but excluding them from bands avoids the texture fetch entirely.
+      Check: `p1.y == p2.y == p3.y` (horizontal) or `p1.x == p2.x == p3.x` (vertical)
+      with a small tolerance.
+
+- [ ] **#25 — Band deduplication / subset sharing**
+      If two adjacent bands contain the same curve index list, point both to the same
+      data in the band texture. Also, if one band's list is a contiguous subset of
+      another's, point it into the larger band's data. Reduces band texture size and
+      improves texture cache hit rate.
+
+- [ ] **#26 — sCapHeight pixel-grid alignment utility**
+      Read `sCapHeight` from the font's OS/2 table. Expose a utility proc that, given a
+      target font size and DPI, returns the nearest size where `size * sCapHeight` is an
+      integer pixel count. This aligns cap-height glyphs to the pixel grid for crisp
+      rendering without traditional font hinting.
 
 ### Later / Stretch Goals
 - [ ] **#1 — Instanced rendering**

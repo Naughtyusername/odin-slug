@@ -8,6 +8,7 @@
 /demo_opengl
 /demo_raylib
 /demo_vulkan
+/demo_sdl3gpu
 
 
 # Editor

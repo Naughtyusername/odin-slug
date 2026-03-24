@@ -11,7 +11,8 @@ Extracted from the SlugVibes demo into a reusable, graphics-API-agnostic package
 - `slug/` — core library (package slug), zero GPU dependencies
 - `slug/backends/vulkan/` — Vulkan 1.x backend (package slug_vulkan)
 - `slug/backends/opengl/` — OpenGL 3.3 backend (package slug_opengl)
-- `slug/shaders/` — GLSL shader source (3.30 + 4.50)
+- `slug/backends/sdl3gpu/` — SDL3 GPU backend (package slug_sdl3gpu)
+- `slug/shaders/` — GLSL shader source (3.30 + 4.50 + SDL3 UBO variants)
 - `examples/` — demo programs
 
 ## Build & Check Commands
@@ -23,6 +24,7 @@ odin check slug/ -no-entry-point
 odin check slug/backends/opengl/ -no-entry-point
 odin check slug/backends/raylib/ -no-entry-point
 odin check slug/backends/vulkan/ -no-entry-point
+odin check slug/backends/sdl3gpu/ -no-entry-point
 
 # Build examples
 odin build examples/demo_opengl/ -collection:libs=.
@@ -32,9 +34,14 @@ odin build examples/demo_raylib/ -collection:libs=.
 ./build.sh shaders
 odin build examples/demo_vulkan/ -collection:libs=.
 # or: ./build.sh vulkan
+
+# SDL3 GPU: compile shaders FIRST, then build
+./build.sh shaders
+odin build examples/demo_sdl3gpu/ -collection:libs=.
+# or: ./build.sh sdl3gpu
 ```
 
-Always run all four `odin check` commands + build all 3 demos before committing.
+Always run all five `odin check` commands + build all 4 demos before committing.
 
 ## Key Files — What to Edit for What
 
@@ -47,9 +54,11 @@ Always run all four `odin check` commands + build all 3 demos before committing.
 | Core types, constants, `Context` struct | `slug/slug.odin` |
 | OpenGL backend (rect pipeline, flush) | `slug/backends/opengl/opengl.odin` |
 | Vulkan backend (pipelines, flush, present_frame) | `slug/backends/vulkan/renderer.odin` |
+| SDL3 GPU backend (pipelines, flush, present_frame) | `slug/backends/sdl3gpu/sdl3gpu.odin` |
 | Raylib backend (thin wrapper over GL) | `slug/backends/raylib/raylib.odin` |
 | GLSL shaders (OpenGL 3.30) | `slug/shaders/*.330.*` |
 | GLSL shaders (Vulkan 4.50) | `slug/shaders/*.450.*` |
+| GLSL shaders (SDL3 GPU, UBO variant) | `slug/shaders/*_sdl3.*` |
 | Demo layout / draw calls | `examples/demo_*/main.odin` |
 
 ## Code Style
@@ -89,7 +98,7 @@ public API must meet these standards:
 - Check `odin check` on core + all backends + build examples before committing
 - New procs in core must work across all backends without changes
 - New types that affect the vertex format or texture packing need shader updates too
-- **All 3 demos (demo_raylib, demo_opengl, demo_vulkan) must showcase every user-facing feature** — no exceptions
+- **All 4 demos (demo_raylib, demo_opengl, demo_vulkan, demo_sdl3gpu) must showcase every user-facing feature** — no exceptions
 - Update docs/DESIGN.md if the feature changes architecture
 
 ### Demo Layout — Adding New Elements
@@ -153,6 +162,17 @@ linalg.matrix_ortho3d_f32(0, w, h, 0, -1, 1)  // WRONG: flips everything vertica
 ```
 Both the rect pipeline and the Slug text pipeline use the Vulkan convention. OpenGL uses the inverted form.
 
+### SDL3 GPU NDC Y-axis
+SDL3 GPU normalizes NDC Y+ up across ALL platform backends (Vulkan, D3D12, Metal) — it handles the Vulkan Y-flip internally. This means SDL3 GPU uses the same projection as OpenGL:
+```odin
+linalg.matrix_ortho3d_f32(0, w, h, 0, -1, 1)  // correct: same as OpenGL
+linalg.matrix_ortho3d_f32(0, w, 0, h, -1, 1)  // WRONG: would flip vertically
+```
+Do NOT copy the Vulkan projection when writing SDL3 GPU code — it will render upside down.
+
+### SDL3 GPU push constants → UBOs
+SDL3 GPU's `PushGPUVertexUniformData` maps to uniform buffer objects, NOT Vulkan push constants. Shaders that use `layout(push_constant)` will silently receive all-zero uniforms. The SDL3 GPU backend has its own shader variants (`*_sdl3.*`) using `layout(set = 1, binding = 0) uniform UBO` for vertex uniforms and `layout(set = 2, binding = N)` for fragment samplers.
+
 ### Rect draw order
 `draw_rect` appends to `ctx.rect_vertices[]`. Backends draw ALL rects in a single flat-color pass BEFORE the Slug glyph pass — so rects are always behind text, regardless of call order within a frame. You cannot draw a rect on top of glyphs in the same frame.
 
@@ -169,6 +189,47 @@ MAX_GLYPH_QUADS :: 4096  // glyph quad capacity per frame
 MAX_FONT_SLOTS  :: 4     // font registry slots
 ```
 If adding features that generate rects (e.g. decorations on wrapped text), watch the rect budget.
+
+### Slug Algorithm — Texture Layout and Band Optimization (Eric Lengyel)
+
+These are core implementation details from the algorithm's author. They govern how
+`slug/ttf.odin` packs glyph data into the curve and band textures.
+
+**Curve texture** — RGBA16F (4 × 16-bit half-float):
+- Stores control point coordinates `(x1, y1, x2, y2)` per texel.
+- One quadratic Bézier curve uses two texels: the first texel holds the first two
+  control points packed as `(x1, y1, x2, y2)`, the third control point goes in the
+  first two channels of the next texel.
+- Connected curves in a contour share an endpoint, so the second texel of one curve
+  is also the first texel of the next curve. This is a data-sharing optimization —
+  don't duplicate endpoints.
+
+**Band texture** — RG16UI (2 × 16-bit unsigned integer):
+- A glyph can have any number of horizontal and vertical bands. Choose band count to
+  minimize the maximum number of curves in any single band.
+- When determining which curves fall into each band, use an epsilon (~1/1024 em-space)
+  to make bands overlap slightly. This prevents edge-case misses at band boundaries.
+- Curves within each band must be sorted in **descending** order of their maximum
+  x-coordinate (horizontal bands) or y-coordinate (vertical bands).
+
+**Band optimizations** (reduce texture size + improve cache):
+- Each band for a single glyph must have the same thickness.
+- If two or more adjacent bands contain the same set of curves, point all of them to
+  the same data (deduplication).
+- If one band's curves are a contiguous subset of another band's, point the smaller
+  band into the larger band's data (subset sharing).
+
+**Curve filtering rules:**
+- Straight horizontal lines must NEVER be included in horizontal bands.
+- Straight vertical lines must NEVER be included in vertical bands.
+- These curves contribute nothing to the winding number for rays parallel to them.
+
+**Pixel-grid alignment (no hinting needed):**
+- Read `sCapHeight` from the font's OS/2 table.
+- Choose font sizes such that `font_size × sCapHeight` is an integer (in pixels,
+  accounting for monitor DPI).
+- This aligns cap-height glyphs to the pixel grid, giving crisp tops and bottoms
+  without traditional font hinting.
 
 ### Plans and Research Output
 - Write plans, research docs, and backend integration notes to `.claude/plans/` (inside the repo root).

@@ -47,13 +47,15 @@ glyph_process :: proc(g: ^Glyph_Data) {
 		delete(v_lists)
 	}
 
+	BAND_EPSILON :: f32(1.0 / 1024.0) // Em-space overlap to prevent boundary misses
+
 	for ci in 0 ..< num_curves {
 		curve := &g.curves[ci]
 
-		min_y := min(curve.p1.y, curve.p2.y, curve.p3.y)
-		max_y := max(curve.p1.y, curve.p2.y, curve.p3.y)
-		min_x := min(curve.p1.x, curve.p2.x, curve.p3.x)
-		max_x := max(curve.p1.x, curve.p2.x, curve.p3.x)
+		min_y := min(curve.p1.y, curve.p2.y, curve.p3.y) - BAND_EPSILON
+		max_y := max(curve.p1.y, curve.p2.y, curve.p3.y) + BAND_EPSILON
+		min_x := min(curve.p1.x, curve.p2.x, curve.p3.x) - BAND_EPSILON
+		max_x := max(curve.p1.x, curve.p2.x, curve.p3.x) + BAND_EPSILON
 
 		band_y_start := int(math.floor((min_y - g.bbox_min.y) / bbox_h * f32(h_band_count)))
 		band_y_end := int(math.floor((max_y - g.bbox_min.y) / bbox_h * f32(h_band_count)))
