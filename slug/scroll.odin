@@ -100,6 +100,175 @@ draw_text_scrolled :: proc(
 	return pen_y + text_line_h
 }
 
+// Draw rich text with word wrapping and scrolling within a scroll region.
+// Only lines overlapping the visible viewport emit quads.
+// Returns the total content height (for scroll bar sizing).
+draw_rich_text_scrolled :: proc(
+	ctx: ^Context,
+	text: string,
+	region: ^Scroll_Region,
+	font_size: f32,
+	default_color: Color,
+	use_kerning: bool = true,
+	line_spacing: f32 = 1.0,
+) -> f32 {
+	font := active_font(ctx)
+	lh := line_height(font, font_size) * line_spacing
+	space_w := char_advance(font, ' ', font_size)
+	text_line_h := (font.ascent - font.descent) * font_size
+	ascent_px := font.ascent * font_size
+
+	pen_x: f32 = 0
+	pen_y: f32 = 0
+
+	vis_top := region.scroll_offset
+	vis_bot := region.scroll_offset + region.height
+
+	i := 0
+	for i < len(text) {
+		if text[i] == '\n' {
+			pen_x = 0
+			pen_y += lh
+			i += 1
+			continue
+		}
+		if text[i] == ' ' && pen_x == 0 {
+			i += 1
+			continue
+		}
+		if text[i] == ' ' {
+			i += 1
+			continue
+		}
+
+		// Consume one token (same as draw_rich_text_wrapped)
+		token_start := i
+		token_color := default_color
+		token_bg: Color = {}
+		token_has_bg := false
+		token_text := ""
+		token_is_icon := false
+		icon_slot := 0
+		icon_color := default_color
+		icon_color_set := false
+
+		if text[i] == '{' {
+			if i + 1 < len(text) && text[i + 1] == '{' {
+				token_text = "{"
+				i += 2
+			} else {
+				s, ic, ics, ie, iok := parse_icon_tag(text, i)
+				if iok {
+					token_is_icon = true
+					icon_slot = s
+					icon_color = ic
+					icon_color_set = ics
+					i = ie
+				} else {
+					bgc, bgt, bge, bgok := parse_bg_tag(text, i)
+					if bgok {
+						token_text = bgt
+						token_bg = bgc
+						token_has_bg = true
+						i = bge
+					} else {
+						fc, ft, fe, fok := parse_rich_tag(text, i)
+						if fok {
+							token_text = ft
+							token_color = fc
+							i = fe
+						} else {
+							token_text = "{"
+							i += 1
+						}
+					}
+				}
+			}
+		} else {
+			for i < len(text) && text[i] != ' ' && text[i] != '\n' && text[i] != '{' {
+				i += 1
+			}
+			token_text = text[token_start:i]
+		}
+
+		if token_is_icon {
+			g := get_glyph_fallback(ctx, rune(icon_slot))
+			if g != nil && len(g.curves) > 0 {
+				icon_w := (g.bbox_max.x - g.bbox_min.x) * font_size
+				icon_h := (g.bbox_max.y - g.bbox_min.y) * font_size
+
+				if pen_x > 0 && pen_x + icon_w > region.width {
+					pen_x = 0
+					pen_y += lh
+				}
+				if pen_x > 0 {
+					pen_x += space_w
+				}
+
+				draw_y := region.y + (pen_y + ascent_px) - region.scroll_offset
+				glyph_top := draw_y - ascent_px
+				glyph_bot := draw_y - font.descent * font_size
+				if glyph_top >= region.y && glyph_bot <= region.y + region.height {
+					line_mid_y := draw_y - (font.ascent + font.descent) * font_size * 0.5
+					glyph_y := line_mid_y - icon_h * 0.5
+					draw_color := icon_color if icon_color_set else default_color
+					if ctx.quad_count < MAX_GLYPH_QUADS {
+						emit_glyph_quad(ctx, g, region.x + pen_x, glyph_y, icon_w, icon_h, draw_color)
+					}
+				}
+				pen_x += icon_w + font_size * 0.1
+			}
+			continue
+		}
+
+		if len(token_text) == 0 do continue
+
+		ti := 0
+		for ti < len(token_text) {
+			if token_text[ti] == ' ' {
+				ti += 1
+				continue
+			}
+			ws := ti
+			for ti < len(token_text) && token_text[ti] != ' ' {
+				ti += 1
+			}
+			word := token_text[ws:ti]
+			word_w, _ := measure_text(font, word, font_size, use_kerning)
+
+			if pen_x > 0 && pen_x + space_w + word_w > region.width {
+				pen_x = 0
+				pen_y += lh
+			}
+			if pen_x > 0 {
+				pen_x += space_w
+			}
+
+			// Only emit if visible
+			draw_y := region.y + (pen_y + ascent_px) - region.scroll_offset
+			glyph_top := draw_y - ascent_px
+			glyph_bot := draw_y - font.descent * font_size
+			if glyph_top >= region.y && glyph_bot <= region.y + region.height {
+				draw_x := region.x + pen_x
+				if token_has_bg {
+					_, wh := measure_text(font, word, font_size, use_kerning)
+					rect_y := draw_y - font.ascent * font_size
+					draw_rect(ctx, draw_x, rect_y, word_w, wh, token_bg)
+				}
+				draw_text(ctx, word, draw_x, draw_y, font_size, token_color, use_kerning)
+			}
+
+			pen_x += word_w
+
+			if ti < len(token_text) && token_text[ti] == ' ' {
+				ti += 1
+			}
+		}
+	}
+
+	return pen_y + text_line_h
+}
+
 // Clamp scroll offset to valid range given total content height.
 // Call after changing scroll_offset to prevent over-scrolling.
 scroll_clamp :: proc(region: ^Scroll_Region, content_height: f32) {

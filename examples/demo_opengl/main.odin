@@ -30,7 +30,7 @@ import slug_gl "../../slug/backends/opengl"
 
 WINDOW_TITLE :: "odin-slug OpenGL Demo"
 WINDOW_WIDTH :: 1600
-WINDOW_HEIGHT :: 900
+WINDOW_HEIGHT :: 1060
 
 // --- Font paths ---
 
@@ -163,7 +163,34 @@ CLIP_BOX_W :: f32(200) // intentionally narrow — text overflows without scisso
 CLIP_BOX_H :: f32(44) // one line tall
 CLIP_TEXT_Y :: CLIP_BOX_Y + 29 // text baseline centered inside box
 
-SCALE_Y :: f32(820)
+// ---- Bottom section: new UI widget demos ----
+
+// Bordered panel (left)
+UI_PANEL_X :: f32(40)
+UI_PANEL_Y :: f32(820)
+UI_PANEL_W :: f32(340)
+UI_PANEL_H :: f32(180)
+
+// Progress bars (inside panel)
+BAR_X :: f32(UI_PANEL_X + 15)
+BAR_Y :: f32(UI_PANEL_Y + 40)
+BAR_W :: f32(200)
+BAR_H :: f32(20)
+
+// Columns demo (center bottom)
+COLUMNS_X :: f32(420)
+COLUMNS_Y :: f32(840)
+
+// Cursor demo (below columns)
+CURSOR2_X :: f32(420)
+CURSOR2_Y :: f32(940)
+
+// Rich text wrapped (right bottom)
+RICH_WRAP_X :: f32(800)
+RICH_WRAP_Y :: f32(820)
+RICH_WRAP_W :: f32(420)
+
+SCALE_Y :: f32(1020)
 
 // Camera pan speed in pixels/second for WASD keys
 CAMERA_SPEED :: f32(400.0)
@@ -445,7 +472,7 @@ main :: proc() {
 		prev_mouse_btn = current_mouse_btn
 
 		// Scroll region: mouse wheel scrolls text when hovering, else zooms canvas
-		scroll_content_h := slug.measure_text_wrapped(
+		scroll_content_h, _ := slug.measure_text_wrapped(
 			ctx,
 			SCROLL_TEXT,
 			SMALL_SIZE,
@@ -924,6 +951,92 @@ main :: proc() {
 			{0.08, 0.14, 0.22, 1.0},
 		)
 		slug.draw_text(ctx, "GPU scissor:", CLIP_BOX_X, CLIP_LABEL_Y, 13, {0.5, 0.5, 0.7, 1.0})
+
+		// ---- Bottom section: UI widget demos ----
+
+		// Bordered panel with rect outline
+		slug.draw_rect_bordered(
+			ctx,
+			UI_PANEL_X, UI_PANEL_Y, UI_PANEL_W, UI_PANEL_H,
+			{0.1, 0.1, 0.18, 1.0},
+			{0.4, 0.4, 0.7, 1.0},
+			border = 2,
+		)
+		slug.draw_text(ctx, "Bordered Panel", UI_PANEL_X + 15, UI_PANEL_Y + 26, SMALL_SIZE, COLOR_WHITE)
+
+		// Progress bars inside panel
+		hp := f32(72.0 + math.sin(elapsed * 0.5) * 28.0)
+		slug.draw_bar(
+			ctx,
+			BAR_X, BAR_Y, BAR_W, BAR_H,
+			hp, 100,
+			{0.2, 0.8, 0.3, 1.0},
+			{0.15, 0.15, 0.25, 1.0},
+			label = fmt.tprintf("HP %d/100", int(hp)),
+			label_size = 14,
+			label_color = COLOR_WHITE,
+			border_color = {0.4, 0.6, 0.4, 1.0},
+			border = 1,
+		)
+		mp := f32(35.0 + math.sin(elapsed * 0.7) * 15.0)
+		slug.draw_bar(
+			ctx,
+			BAR_X, BAR_Y + 30, BAR_W, BAR_H,
+			mp, 80,
+			{0.3, 0.4, 0.9, 1.0},
+			{0.15, 0.15, 0.25, 1.0},
+			label = fmt.tprintf("MP %d/80", int(mp)),
+			label_size = 14,
+			border_color = {0.3, 0.4, 0.7, 1.0},
+			border = 1,
+		)
+
+		// Rect outline demo
+		slug.draw_rect_outline(ctx, UI_PANEL_X + 15, BAR_Y + 70, 120, 50, {0.6, 0.3, 0.8, 1.0}, 2)
+		slug.draw_text(ctx, "Outline", UI_PANEL_X + 35, BAR_Y + 100, 14, {0.6, 0.3, 0.8, 1.0})
+
+		// Columns demo
+		slug.draw_text(ctx, "Columnar layout:", COLUMNS_X, COLUMNS_Y - 10, 13, {0.5, 0.5, 0.7, 1.0})
+		slug.draw_text_columns(ctx, {
+			{text = "Name",      width = 160, align = .Left,  color = {0.5, 0.5, 0.7, 1.0}},
+			{text = "HP",        width = 80,  align = .Right, color = {0.5, 0.5, 0.7, 1.0}},
+			{text = "Status",    width = 120, align = .Center, color = {0.5, 0.5, 0.7, 1.0}},
+		}, COLUMNS_X, COLUMNS_Y + 14, SMALL_SIZE, COLOR_WHITE)
+		slug.draw_text_columns(ctx, {
+			{text = "Skeleton",  width = 160, align = .Left,  color = {0.8, 0.6, 0.6, 1.0}},
+			{text = "45/80",     width = 80,  align = .Right, color = {1.0, 0.5, 0.3, 1.0}},
+			{text = "BURNING",   width = 120, align = .Center, color = {1.0, 0.6, 0.2, 1.0}},
+		}, COLUMNS_X, COLUMNS_Y + 42, SMALL_SIZE, COLOR_WHITE)
+		slug.draw_text_columns(ctx, {
+			{text = "Goblin",    width = 160, align = .Left,  color = {0.6, 0.8, 0.6, 1.0}},
+			{text = "12/30",     width = 80,  align = .Right, color = {1.0, 0.3, 0.3, 1.0}},
+			{text = "POISONED",  width = 120, align = .Center, color = {0.3, 0.9, 0.3, 1.0}},
+		}, COLUMNS_X, COLUMNS_Y + 70, SMALL_SIZE, COLOR_WHITE)
+
+		// Blinking cursor demo
+		slug.draw_text(ctx, "Cursor:", CURSOR2_X, CURSOR2_Y - 10, 13, {0.5, 0.5, 0.7, 1.0})
+		slug.draw_text(ctx, "Text input field", CURSOR2_X, CURSOR2_Y + 16, SMALL_SIZE, {0.7, 0.9, 0.7, 1.0})
+		cursor2_px := slug.cursor_x_from_index(font, "Text input field", SMALL_SIZE, 10)
+		slug.draw_cursor(ctx, CURSOR2_X + cursor2_px, CURSOR2_Y + 16, SMALL_SIZE, {0.3, 1.0, 0.5, 1.0}, time = f64(elapsed))
+
+		// Rich text wrapped
+		slug.draw_text(ctx, "Rich text wrapped:", RICH_WRAP_X, RICH_WRAP_Y - 10, 13, {0.5, 0.5, 0.7, 1.0})
+		slug.draw_rect_bordered(
+			ctx,
+			RICH_WRAP_X, RICH_WRAP_Y, RICH_WRAP_W, 120,
+			{0.08, 0.08, 0.14, 1.0},
+			{0.3, 0.3, 0.5, 1.0},
+			border = 1,
+		)
+		slug.draw_rich_text_wrapped(
+			ctx,
+			"The {red:goblin} attacks for {yellow:8 damage}! You counter with {icon:128:yellow}{yellow:Golden Sword} for {green:15 damage}. The {red:goblin} is {bg:red:DEFEATED}! You gain {cyan:25 XP}.",
+			RICH_WRAP_X + 10, RICH_WRAP_Y + 8,
+			SMALL_SIZE,
+			RICH_WRAP_W - 20,
+			COLOR_WHITE,
+			line_spacing = 1.4,
+		)
 
 		// Scale indicator
 		slug.draw_text(

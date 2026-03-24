@@ -614,14 +614,23 @@ Built with **Claude Code** (Anthropic's Claude). I provided direction, architect
 - [x] Subscript/superscript, grid layout (CP437), independent decoration colors
 - [x] 6 backends: OpenGL, Raylib, Vulkan, SDL3 GPU, Karl2D, Sokol GFX
 
-### Post-v1.0 (iterative)
+### Post-v1.0 — Roguelike UI Essentials
+
+- [ ] Outlined / bordered rectangles -- panel frames, tooltip borders, dialog boxes
+- [ ] Rich text wrapping -- word-wrap `{red:text}` markup in fixed-width panels
+- [ ] Rich text scrolling -- scrollable message log with inline colors
+- [ ] Cursor rendering -- blinking text cursor for input fields
+- [ ] Progress / stat bars -- HP/MP/XP bars with label overlay
+- [ ] Wrapped text line count -- auto-size panels, pagination
+- [ ] Columnar layout -- per-column widths and alignment for tables
+- [ ] Clipped rich text -- scissor integration with text draw procs
+
+### Later
 
 - [ ] Zoom toward cursor -- camera offset adjustment per zoom step
 - [ ] Tooltip system -- positioned text box, auto-flips at screen edges
-- [ ] Text input widget -- builds on cursor positioning, selection, clipboard
-- [ ] Instanced rendering -- batch draw calls optimization
+- [ ] Text input widget -- full edit state, selection, clipboard
 - [ ] HarfBuzz integration -- complex script shaping (Arabic, Devanagari, CJK)
-- [ ] BiDi text (UAX #9) -- bidirectional algorithm for mixed LTR/RTL
 - [ ] README screenshots / demo GIFs
 
 ## Credits

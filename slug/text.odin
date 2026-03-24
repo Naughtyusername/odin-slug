@@ -557,8 +557,8 @@ draw_text_wrapped :: proc(
 }
 
 // Measure wrapped text height without drawing.
-// Returns the total height the text block would occupy, so you can
-// size a background box before drawing the text on top.
+// Returns (total_height, line_count). Use line_count for panel sizing, pagination,
+// and deciding whether to show scroll indicators.
 measure_text_wrapped :: proc(
 	ctx: ^Context,
 	text: string,
@@ -566,7 +566,7 @@ measure_text_wrapped :: proc(
 	max_width: f32,
 	use_kerning: bool = true,
 	line_spacing: f32 = 1.0,
-) -> f32 {
+) -> (height: f32, lines: int) {
 	font := active_font(ctx)
 	lh := line_height(font, font_size) * line_spacing
 	space_w := char_advance(font, ' ', font_size)
@@ -574,12 +574,14 @@ measure_text_wrapped :: proc(
 
 	pen_x: f32 = 0
 	pen_y: f32 = 0
+	line_count := 1
 
 	i := 0
 	for i < len(text) {
 		if text[i] == '\n' {
 			pen_x = 0
 			pen_y += lh
+			line_count += 1
 			i += 1
 			continue
 		}
@@ -597,6 +599,7 @@ measure_text_wrapped :: proc(
 		if pen_x > 0 && pen_x + space_w + word_w > max_width {
 			pen_x = 0
 			pen_y += lh
+			line_count += 1
 		}
 		if pen_x > 0 {
 			pen_x += space_w
@@ -607,7 +610,7 @@ measure_text_wrapped :: proc(
 		}
 	}
 
-	return pen_y + text_line_h
+	return pen_y + text_line_h, line_count
 }
 
 // Draw an SVG icon centered at the given screen position.
@@ -655,6 +658,129 @@ draw_rect :: proc(ctx: ^Context, x, y, w, h: f32, color: Color) {
 	ctx.rect_vertices[base + 3] = Rect_Vertex{{cx,     cy + h}, color}
 
 	ctx.rect_count += 1
+}
+
+// Draw a rectangle outline (border only, no fill).
+// Thickness is in pixels — the border is drawn inward from the specified bounds.
+draw_rect_outline :: proc(ctx: ^Context, x, y, w, h: f32, color: Color, thickness: f32 = 1) {
+	draw_rect(ctx, x, y, w, thickness, color)             // top
+	draw_rect(ctx, x, y + h - thickness, w, thickness, color) // bottom
+	draw_rect(ctx, x, y + thickness, thickness, h - thickness * 2, color) // left
+	draw_rect(ctx, x + w - thickness, y + thickness, thickness, h - thickness * 2, color) // right
+}
+
+// Draw a filled rectangle with a border of a different color.
+// Border is drawn inward from the specified bounds, fill occupies the interior.
+draw_rect_bordered :: proc(ctx: ^Context, x, y, w, h: f32, fill_color, border_color: Color, border: f32 = 1) {
+	draw_rect_outline(ctx, x, y, w, h, border_color, border)
+	draw_rect(ctx, x + border, y + border, w - border * 2, h - border * 2, fill_color)
+}
+
+// Draw a horizontal progress bar with an optional centered text label.
+// value/max_value determines fill ratio. Background is drawn at full width,
+// filled portion at proportional width. Label (if non-empty) is centered on the bar.
+draw_bar :: proc(
+	ctx: ^Context,
+	x, y, w, h: f32,
+	value, max_value: f32,
+	fill_color, bg_color: Color,
+	label: string = "",
+	label_size: f32 = 0,
+	label_color: Color = WHITE,
+	border_color: Color = TRANSPARENT,
+	border: f32 = 0,
+) {
+	// Background
+	draw_rect(ctx, x, y, w, h, bg_color)
+
+	// Fill
+	ratio := clamp(value / max_value, 0, 1) if max_value > 0 else 0
+	fill_w := w * ratio
+	if fill_w > 0 {
+		draw_rect(ctx, x, y, fill_w, h, fill_color)
+	}
+
+	// Border (on top of bg+fill, still behind text)
+	if border > 0 && border_color.a > 0 {
+		draw_rect_outline(ctx, x, y, w, h, border_color, border)
+	}
+
+	// Centered label
+	if len(label) > 0 {
+		font := active_font(ctx)
+		sz := label_size if label_size > 0 else h * 0.7
+		tw, _ := measure_text(font, label, sz)
+		lx := x + (w - tw) * 0.5
+		ly := y + (h - (font.ascent - font.descent) * sz) * 0.5 + font.ascent * sz
+		draw_text(ctx, label, lx, ly, sz, label_color)
+	}
+}
+
+// Draw a blinking text cursor (vertical line) at the given position.
+// time is the current elapsed time in seconds; blink_rate is full cycles per second.
+// The cursor is drawn as a thin rect, so it appears behind text (same as all rects).
+draw_cursor :: proc(
+	ctx: ^Context,
+	x, y: f32,
+	font_size: f32,
+	color: Color,
+	time: f64 = 0,
+	blink_rate: f32 = 1.5,
+	width: f32 = 2,
+) {
+	// Blink: visible for first half of each cycle
+	if blink_rate > 0 {
+		cycle := f32(time) * blink_rate
+		if cycle - f32(int(cycle)) > 0.5 do return
+	}
+	font := active_font(ctx)
+	h := (font.ascent - font.descent) * font_size
+	cursor_y := y - font.ascent * font_size
+	draw_rect(ctx, x, cursor_y, width, h, color)
+}
+
+// Column alignment for draw_text_columns.
+Column_Align :: enum {
+	Left,
+	Center,
+	Right,
+}
+
+// Column specification for tabular text layout.
+Column :: struct {
+	text:  string,
+	width: f32,
+	align: Column_Align,
+	color: Color,
+}
+
+// Draw a row of columns at the given position.
+// Each column is drawn within its width, aligned per its spec.
+// Columns are laid out left-to-right starting at x.
+draw_text_columns :: proc(
+	ctx: ^Context,
+	columns: []Column,
+	x, y: f32,
+	font_size: f32,
+	default_color: Color = WHITE,
+	use_kerning: bool = true,
+) {
+	font := active_font(ctx)
+	col_x := x
+	for &col in columns {
+		c := col.color if col.color.a > 0 else default_color
+		switch col.align {
+		case .Left:
+			draw_text(ctx, col.text, col_x, y, font_size, c, use_kerning)
+		case .Center:
+			tw, _ := measure_text(font, col.text, font_size, use_kerning)
+			draw_text(ctx, col.text, col_x + (col.width - tw) * 0.5, y, font_size, c, use_kerning)
+		case .Right:
+			tw, _ := measure_text(font, col.text, font_size, use_kerning)
+			draw_text(ctx, col.text, col_x + col.width - tw, y, font_size, c, use_kerning)
+		}
+		col_x += col.width
+	}
 }
 
 // Draw text justified to exactly fill column_width pixels.

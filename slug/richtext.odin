@@ -195,6 +195,314 @@ draw_rich_text_centered :: proc(
 	return draw_rich_text(ctx, text, x - w * 0.5, y, font_size, default_color, use_kerning)
 }
 
+// Draw rich text with word wrapping at max_width.
+// Returns (total_height, line_count) — same as draw_text_wrapped.
+// Supports all rich text markup: {color:text}, {bg:color:text}, {icon:N:color}, {{.
+draw_rich_text_wrapped :: proc(
+	ctx: ^Context,
+	text: string,
+	x, y: f32,
+	font_size: f32,
+	max_width: f32,
+	default_color: Color,
+	use_kerning: bool = true,
+	line_spacing: f32 = 1.0,
+) -> (height: f32, lines: int) {
+	font := active_font(ctx)
+	lh := line_height(font, font_size) * line_spacing
+	space_w := char_advance(font, ' ', font_size)
+	text_line_h := (font.ascent - font.descent) * font_size
+	ascent_px := font.ascent * font_size
+
+	pen_x: f32 = 0
+	pen_y: f32 = ascent_px
+	line_count := 1
+
+	i := 0
+	for i < len(text) {
+		// Newline
+		if text[i] == '\n' {
+			pen_x = 0
+			pen_y += lh
+			line_count += 1
+			i += 1
+			continue
+		}
+
+		// Skip spaces at line start
+		if text[i] == ' ' && pen_x == 0 {
+			i += 1
+			continue
+		}
+
+		// Skip space — spacing is reconstructed at draw time via space_w
+		if text[i] == ' ' {
+			i += 1
+			continue
+		}
+
+		// Markup or plain text — consume one "visual token"
+		// A token is either a markup tag or a run of plain text up to space/newline/markup
+		token_start := i
+		token_color := default_color
+		token_bg: Color = {}
+		token_has_bg := false
+		token_text := ""
+		token_is_icon := false
+		icon_slot := 0
+		icon_color := default_color
+		icon_color_set := false
+
+		if text[i] == '{' {
+			// Escaped brace
+			if i + 1 < len(text) && text[i + 1] == '{' {
+				token_text = "{"
+				i += 2
+			} else {
+				// Try icon tag
+				s, ic, ics, ie, iok := parse_icon_tag(text, i)
+				if iok {
+					token_is_icon = true
+					icon_slot = s
+					icon_color = ic
+					icon_color_set = ics
+					i = ie
+				} else {
+					// Try bg tag
+					bgc, bgt, bge, bgok := parse_bg_tag(text, i)
+					if bgok {
+						token_text = bgt
+						token_bg = bgc
+						token_has_bg = true
+						i = bge
+					} else {
+						// Try color tag
+						fc, ft, fe, fok := parse_rich_tag(text, i)
+						if fok {
+							token_text = ft
+							token_color = fc
+							i = fe
+						} else {
+							// Not a valid tag — treat '{' as plain text
+							token_text = "{"
+							i += 1
+						}
+					}
+				}
+			}
+		} else {
+			// Plain text up to next space, newline, or markup
+			for i < len(text) && text[i] != ' ' && text[i] != '\n' && text[i] != '{' {
+				i += 1
+			}
+			token_text = text[token_start:i]
+		}
+
+		if token_is_icon {
+			g := get_glyph_fallback(ctx, rune(icon_slot))
+			if g != nil && len(g.curves) > 0 {
+				icon_w := (g.bbox_max.x - g.bbox_min.x) * font_size
+				icon_h := (g.bbox_max.y - g.bbox_min.y) * font_size
+
+				// Wrap if needed
+				if pen_x > 0 && pen_x + icon_w > max_width {
+					pen_x = 0
+					pen_y += lh
+					line_count += 1
+				}
+				if pen_x > 0 {
+					pen_x += space_w
+				}
+
+				line_mid_y := (y + pen_y) - (font.ascent + font.descent) * font_size * 0.5
+				glyph_y := line_mid_y - icon_h * 0.5
+				draw_color := icon_color if icon_color_set else default_color
+				if ctx.quad_count < MAX_GLYPH_QUADS {
+					emit_glyph_quad(ctx, g, x + pen_x, glyph_y, icon_w, icon_h, draw_color)
+				}
+				pen_x += icon_w + font_size * 0.1
+			}
+			continue
+		}
+
+		if len(token_text) == 0 do continue
+
+		// The token may contain spaces within a tag (e.g. {red:hello world}).
+		// Split into words and wrap each.
+		ti := 0
+		for ti < len(token_text) {
+			// Skip spaces at word start within token
+			if token_text[ti] == ' ' {
+				ti += 1
+				continue
+			}
+			// Find word boundary
+			ws := ti
+			for ti < len(token_text) && token_text[ti] != ' ' {
+				ti += 1
+			}
+			word := token_text[ws:ti]
+			word_w, _ := measure_text(font, word, font_size, use_kerning)
+
+			// Wrap
+			if pen_x > 0 && pen_x + space_w + word_w > max_width {
+				pen_x = 0
+				pen_y += lh
+				line_count += 1
+			}
+			if pen_x > 0 {
+				pen_x += space_w
+			}
+
+			// Draw bg rect if needed
+			if token_has_bg {
+				_, wh := measure_text(font, word, font_size, use_kerning)
+				rect_y := (y + pen_y) - font.ascent * font_size
+				draw_rect(ctx, x + pen_x, rect_y, word_w, wh, token_bg)
+			}
+
+			draw_text(ctx, word, x + pen_x, y + pen_y, font_size, token_color, use_kerning)
+			pen_x += word_w
+
+			// Skip spaces after word
+			if ti < len(token_text) && token_text[ti] == ' ' {
+				ti += 1
+			}
+		}
+	}
+
+	return pen_y - ascent_px + text_line_h, line_count
+}
+
+// Measure rich text wrapped height without drawing.
+// Returns (total_height, line_count).
+measure_rich_text_wrapped :: proc(
+	ctx: ^Context,
+	text: string,
+	font_size: f32,
+	max_width: f32,
+	default_color: Color = {},
+	use_kerning: bool = true,
+	line_spacing: f32 = 1.0,
+) -> (height: f32, lines: int) {
+	font := active_font(ctx)
+	lh := line_height(font, font_size) * line_spacing
+	space_w := char_advance(font, ' ', font_size)
+	text_line_h := (font.ascent - font.descent) * font_size
+
+	pen_x: f32 = 0
+	pen_y: f32 = 0
+	line_count := 1
+
+	i := 0
+	for i < len(text) {
+		if text[i] == '\n' {
+			pen_x = 0
+			pen_y += lh
+			line_count += 1
+			i += 1
+			continue
+		}
+		if text[i] == ' ' && pen_x == 0 {
+			i += 1
+			continue
+		}
+		if text[i] == ' ' {
+			i += 1
+			continue
+		}
+
+		// Consume token (same logic as draw, but only measure)
+		token_start := i
+		token_text := ""
+		token_is_icon := false
+		icon_slot := 0
+
+		if text[i] == '{' {
+			if i + 1 < len(text) && text[i + 1] == '{' {
+				token_text = "{"
+				i += 2
+			} else {
+				s, _, _, ie, iok := parse_icon_tag(text, i)
+				if iok {
+					token_is_icon = true
+					icon_slot = s
+					i = ie
+				} else {
+					_, bgt, bge, bgok := parse_bg_tag(text, i)
+					if bgok {
+						token_text = bgt
+						i = bge
+					} else {
+						_, ft, fe, fok := parse_rich_tag(text, i)
+						if fok {
+							token_text = ft
+							i = fe
+						} else {
+							token_text = "{"
+							i += 1
+						}
+					}
+				}
+			}
+		} else {
+			for i < len(text) && text[i] != ' ' && text[i] != '\n' && text[i] != '{' {
+				i += 1
+			}
+			token_text = text[token_start:i]
+		}
+
+		if token_is_icon {
+			g := get_glyph(font, rune(icon_slot))
+			if g != nil {
+				icon_w := (g.bbox_max.x - g.bbox_min.x) * font_size
+				if pen_x > 0 && pen_x + icon_w > max_width {
+					pen_x = 0
+					pen_y += lh
+					line_count += 1
+				}
+				if pen_x > 0 {
+					pen_x += space_w
+				}
+				pen_x += icon_w + font_size * 0.1
+			}
+			continue
+		}
+
+		if len(token_text) == 0 do continue
+
+		ti := 0
+		for ti < len(token_text) {
+			if token_text[ti] == ' ' {
+				ti += 1
+				continue
+			}
+			ws := ti
+			for ti < len(token_text) && token_text[ti] != ' ' {
+				ti += 1
+			}
+			word := token_text[ws:ti]
+			word_w, _ := measure_text(font, word, font_size, use_kerning)
+
+			if pen_x > 0 && pen_x + space_w + word_w > max_width {
+				pen_x = 0
+				pen_y += lh
+				line_count += 1
+			}
+			if pen_x > 0 {
+				pen_x += space_w
+			}
+			pen_x += word_w
+
+			if ti < len(token_text) && token_text[ti] == ' ' {
+				ti += 1
+			}
+		}
+	}
+
+	return pen_y + text_line_h, line_count
+}
+
 // Strip all rich text markup, returning plain text length in bytes.
 // Useful for cursor positioning: convert rich text positions to plain positions.
 rich_text_plain_length :: proc(text: string) -> int {
@@ -232,7 +540,7 @@ rich_text_plain_length :: proc(text: string) -> int {
 // Returns the background color, the inner text, position after '}', and success.
 // The inner text is drawn with the caller's default foreground color —
 // nest a {color:...} tag inside if you also want a custom foreground.
-@(private = "file")
+@(private = "package")
 parse_bg_tag :: proc(text: string, start: int) -> (bg_color: Color, inner: string, end_pos: int, ok: bool) {
 	if start >= len(text) || text[start] != '{' do return {}, "", start, false
 
@@ -277,7 +585,7 @@ parse_bg_tag :: proc(text: string, start: int) -> (bg_color: Color, inner: strin
 // Parse a {color:text} tag starting at position `start` (which should be '{').
 // Returns the color, the inner text (as a slice of the original string),
 // the position after the closing '}', and whether parsing succeeded.
-@(private = "file")
+@(private = "package")
 parse_rich_tag :: proc(text: string, start: int) -> (color: Color, inner: string, end_pos: int, ok: bool) {
 	if start >= len(text) || text[start] != '{' do return {}, "", start, false
 
@@ -317,7 +625,7 @@ parse_rich_tag :: proc(text: string, start: int) -> (color: Color, inner: string
 }
 
 // Resolve a color name or hex code to a Color value.
-@(private = "file")
+@(private = "package")
 resolve_color_name :: proc(name: string) -> (Color, bool) {
 	// Named colors
 	switch name {
@@ -373,7 +681,7 @@ resolve_color_name :: proc(name: string) -> (Color, bool) {
 // as foreground/background tags (e.g. {icon:128:red}, {icon:128:#ff8800}).
 // If no color is specified, color_set is false and the caller uses default_color.
 // Returns false if the tag is malformed or N contains non-digit characters.
-@(private = "file")
+@(private = "package")
 parse_icon_tag :: proc(text: string, start: int) -> (slot: int, color: Color, color_set: bool, end_pos: int, ok: bool) {
 	if start >= len(text) || text[start] != '{' do return 0, {}, false, start, false
 

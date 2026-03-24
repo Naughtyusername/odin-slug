@@ -43,12 +43,44 @@ Last updated: 2026-03-23 (session 9 — v1.0)
 
 ## Feature Roadmap
 
-### Up Next
+### Up Next — Roguelike UI Essentials
+
+- [ ] **#27 — Outlined / bordered rects** (`draw_rect_outline`, `draw_rect_bordered`)
+      Every panel, tooltip, dialog needs visible borders. Currently requires 4 thin rects
+      per border — tedious and burns MAX_RECTS fast with nested panels.
+
+- [ ] **#28 — Rich text wrapping** (`draw_rich_text_wrapped`, `measure_rich_text_wrapped`)
+      `draw_text_wrapped` exists for plain text, `draw_rich_text` for single-line. No way
+      to word-wrap `"{red:5 damage!} The goblin falls."` into a fixed-width panel.
+      The message log is broken without this.
+
+- [ ] **#29 — Rich text scrolling** (`draw_rich_text_scrolled`)
+      Scrollable message log needs both rich text markup AND scrolling. Falls out naturally
+      from #28 since `draw_text_scrolled` already delegates to wrapping internally.
+
+- [ ] **#30 — Cursor / text input rendering** (`draw_cursor`)
+      Building blocks exist (cursor_x_from_index, index_from_x) but no blinking cursor
+      draw helper. Character naming screens, search bars, debug consoles need this.
+
+- [ ] **#31 — Progress / stat bars** (`draw_bar`)
+      HP/MP/XP/hunger/durability bars — two rects + centered label. Every roguelike HUD
+      needs these. Every user will write this boilerplate without a helper.
+
+- [ ] **#32 — Wrapped text line count**
+      `measure_text_wrapped` returns height but not line count. Need line count to auto-size
+      panels, decide scroll indicators, paginate content ("Page 1 of 3").
+
+- [ ] **#33 — Columnar / tabular layout** (`draw_text_columns`)
+      Tab stops are fixed-width. Need per-column widths and alignments for inventory tables,
+      stat displays, keybinding help. Every roguelike inventory is a table.
+
+- [ ] **#34 — Clipped rich text convenience**
+      GPU scissor exists at flush level but no integration with text draw procs. Users must
+      manually coordinate flush calls. Horizontal overflow in panels isn't handled.
+
+### Later
 - [ ] **#21 — Viewport zoom (zoom toward cursor)**
-      Currently `ui_scale` only scales font sizes — positions are fixed, so zoom doesn't
-      follow the cursor. True viewport zoom needs a `zoom` factor in `Context` applied to
-      both positions AND font sizes in the vertex emitters, plus a camera offset adjustment
-      on each zoom step to keep the point under the cursor fixed in screen space.
+      Camera offset adjustment per zoom step so zoom centers on mouse position.
 
 - [ ] **#15 — Tooltip system**
       Positioned text box that follows the mouse and auto-flips at screen edges.
