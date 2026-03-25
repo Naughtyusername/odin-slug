@@ -570,6 +570,20 @@ nmake -f Windows.mak
 ```
 Vendor libraries (OpenGL, GLFW, Raylib) are included. Vulkan SDK from [lunarg.com](https://vulkan.lunarg.com/) if using Vulkan. Raylib backend may need `-define:RAYLIB_SHARED=true` on some setups.
 
+Karl2D and Sokol are external packages not bundled with Odin. Clone them as sibling directories for auto-detection, or set the path explicitly:
+```cmd
+:: Karl2D (sibling dir auto-detected, or set KARL2D_PATH)
+git clone https://github.com/nicoepp/karl2d ..\karl2d
+build.bat karl2d
+
+:: Sokol GFX — must compile C libs first (requires MSVC via Developer Command Prompt)
+git clone https://github.com/floooh/sokol-odin ..\sokol-odin
+cd ..\sokol-odin\sokol
+build_clibs_windows.cmd
+cd ..\..\odin-slug
+build.bat sokol
+```
+
 **macOS** (untested): Install Odin. Build stb vendor lib: `make -C $(odin root)/vendor/stb/src unix`. OpenGL backend works (macOS supports OpenGL 4.1). Vulkan requires MoltenVK. Not yet tested -- please report issues.
 
 ### Troubleshooting

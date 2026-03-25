@@ -158,10 +158,23 @@ auto-detects `../sokol-odin/sokol/` as a sibling directory. Override with
 inside the clone, not the repo root).
 
 ```sh
-git clone https://github.com/floooh/sokol-odin /path/to/sokol-odin
-cd /path/to/sokol-odin/sokol && bash build_clibs_linux.sh
-# If not a sibling directory:
+# Linux/macOS
+git clone https://github.com/floooh/sokol-odin ../sokol-odin
+cd ../sokol-odin/sokol && bash build_clibs_linux.sh
+# If not a sibling directory, set the path explicitly:
 export SOKOL_PATH=/path/to/sokol-odin/sokol
+./build.sh sokol
+```
+
+```cmd
+:: Windows (Developer Command Prompt)
+git clone https://github.com/floooh/sokol-odin ..\sokol-odin
+cd ..\sokol-odin\sokol
+build_clibs_windows.cmd
+cd ..\..\odin-slug
+:: If not a sibling directory, set the path explicitly:
+set SOKOL_PATH=C:\path\to\sokol-odin\sokol
+build.bat sokol
 ```
 
 ### SDL3 GPU — "I want modern GPU access with SDL3"
