@@ -1,5 +1,3 @@
-$ErrorActionPreference = "Stop"
-
 # odin-slug build script (PowerShell)
 # Builds examples and optionally checks the library.
 #
@@ -12,6 +10,8 @@ $ErrorActionPreference = "Stop"
 param(
     [string]$Command = "check"
 )
+
+$ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
@@ -43,7 +43,7 @@ function Do-Check {
     $sokolPath = Resolve-SokolPath
     if ($sokolPath) {
         Write-Host "=== Checking Sokol backend ==="
-        odin check slug/backends/sokol/ -no-entry-point "-collection:sokol=$sokolPath"
+        odin check slug/backends/sokol/ -no-entry-point "-collection:sokol=$sokolPath" -define:SOKOL_USE_GL=true
         Write-Host "Sokol backend: OK"
     } else {
         Write-Host "=== Skipping Sokol backend (SOKOL_PATH not set) ==="
@@ -117,7 +117,7 @@ function Do-BuildKarl2D {
         Write-Host "  Or set:    `$env:KARL2D_PATH = 'C:\path\to'  (parent dir of karl2d\)"
         exit 1
     }
-    odin build examples/demo_karl2d/ -out:demo_karl2d.exe -collection:libs=. "-collection:karl2d=$karl2dPath"
+    odin build examples/demo_karl2d/ -out:demo_karl2d.exe -collection:libs=. "-collection:karl2d=$karl2dPath" -define:KARL2D_RENDER_BACKEND=gl
     Write-Host "Built: demo_karl2d.exe"
 }
 
@@ -131,7 +131,7 @@ function Do-BuildSokol {
         Write-Host "  Or set:    `$env:SOKOL_PATH = 'C:\path\to\sokol-odin\sokol'"
         exit 1
     }
-    odin build examples/demo_sokol/ -out:demo_sokol.exe -collection:libs=. "-collection:sokol=$sokolPath"
+    odin build examples/demo_sokol/ -out:demo_sokol.exe -collection:libs=. "-collection:sokol=$sokolPath" -define:SOKOL_USE_GL=true
     Write-Host "Built: demo_sokol.exe"
 }
 

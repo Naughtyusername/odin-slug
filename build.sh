@@ -55,7 +55,7 @@ do_check() {
     fi
     if [ -n "$SOKOL_PATH" ]; then
         echo "=== Checking Sokol backend ==="
-        odin check slug/backends/sokol/ -no-entry-point -collection:sokol="$SOKOL_PATH"
+        odin check slug/backends/sokol/ -no-entry-point -collection:sokol="$SOKOL_PATH" -define:SOKOL_USE_GL=true
         echo "Sokol backend: OK"
     else
         echo "=== Skipping Sokol backend (SOKOL_PATH not set) ==="
@@ -118,7 +118,7 @@ do_build_karl2d() {
             exit 1
         fi
     fi
-    odin build examples/demo_karl2d/ -out:demo_karl2d -collection:libs=. -collection:karl2d="$KARL2D_PATH"
+    odin build examples/demo_karl2d/ -out:demo_karl2d -collection:libs=. -collection:karl2d="$KARL2D_PATH" -define:KARL2D_RENDER_BACKEND=gl
     echo "Built: ./demo_karl2d"
 }
 
@@ -135,7 +135,7 @@ do_build_sokol() {
             exit 1
         fi
     fi
-    odin build examples/demo_sokol/ -out:demo_sokol -collection:libs=. -collection:sokol="$SOKOL_PATH"
+    odin build examples/demo_sokol/ -out:demo_sokol -collection:libs=. -collection:sokol="$SOKOL_PATH" -define:SOKOL_USE_GL=true
     echo "Built: ./demo_sokol"
 }
 

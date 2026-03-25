@@ -11,8 +11,11 @@ package main
 //
 // Build:
 //   export KARL2D_PATH=/path/to  # parent dir of karl2d/
-//   odin build examples/demo_karl2d/ -collection:libs=. -collection:karl2d=$KARL2D_PATH
+//   odin build examples/demo_karl2d/ -collection:libs=. -collection:karl2d=$KARL2D_PATH -define:KARL2D_RENDER_BACKEND=gl
 //   # or: KARL2D_PATH=/path/to ./build.sh karl2d
+//
+// Note: KARL2D_RENDER_BACKEND=gl is required on Windows because Karl2D defaults to D3D11
+// there; the slug backend requires an OpenGL 3.3 context.
 // Run:    ./demo_karl2d
 //
 // Prerequisites:
