@@ -294,6 +294,8 @@ main :: proc() {
 		slug_k2.upload_shared_textures(renderer, &pack)
 	}
 
+	ctx.weight_boost = true
+
 	// -----------------------------------------------
 	// 4. Cache static text
 	// -----------------------------------------------

@@ -18,6 +18,14 @@ layout(location = 3) flat in ivec4 inGlyph;        // Glyph data
 // --- Output ---
 layout(location = 0) out vec4 fragColor;
 
+// --- Push constants (shared with vertex shader) ---
+layout(push_constant) uniform PushConstants {
+    mat4 mvp;           // 64 bytes
+    vec2 viewport;      // 8 bytes
+    float weightBoost;  // 4 bytes
+    float _pad;         // 4 bytes
+} pc;
+
 // --- Textures ---
 layout(binding = 0) uniform sampler2D curveTexture;    // float16x4 control points
 layout(binding = 1) uniform usampler2D bandTexture;    // uint16x2 band data
@@ -198,5 +206,6 @@ void main()
     }
 
     float coverage = CalcCoverage(xcov, ycov, xwgt, ywgt);
+    if (pc.weightBoost > 0.5) coverage = sqrt(coverage);
     fragColor = inColor * coverage;
 }

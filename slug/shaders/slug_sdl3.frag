@@ -16,6 +16,11 @@ layout(location = 3) flat in ivec4 inGlyph;
 // --- Output ---
 layout(location = 0) out vec4 fragColor;
 
+// --- Fragment uniform buffer (SDL3 GPU: fragment uniforms = set 3) ---
+layout(set = 3, binding = 0) uniform FragUBO {
+    float weightBoost;
+} frag;
+
 // --- Textures (fragment sampler slots 0 and 1) ---
 layout(set = 2, binding = 0) uniform sampler2D curveTexture;
 layout(set = 2, binding = 1) uniform usampler2D bandTexture;
@@ -168,5 +173,6 @@ void main()
     }
 
     float coverage = CalcCoverage(xcov, ycov, xwgt, ywgt);
+    if (frag.weightBoost > 0.5) coverage = sqrt(coverage);
     fragColor = inColor * coverage;
 }

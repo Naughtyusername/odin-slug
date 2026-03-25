@@ -20,10 +20,12 @@ import slug "../.."
 // calls are batched per-font: one vkCmdDrawIndexed per active font slot.
 // ===================================================
 
-// --- Push constant layout (must match vertex shader) ---
+// --- Push constant layout (must match vertex + fragment shaders) ---
 Push_Constants :: struct {
-	mvp:      matrix[4, 4]f32, // 64 bytes
-	viewport: [2]f32, // 8 bytes
+	mvp:          matrix[4, 4]f32, // 64 bytes
+	viewport:     [2]f32,          // 8 bytes
+	weight_boost: f32,             // 4 bytes
+	_pad:         f32,             // 4 bytes → 80 total
 }
 
 // --- Per-font GPU resources ---
@@ -690,10 +692,11 @@ flush :: proc(r: ^Renderer, scissor: slug.Scissor_Rect = {}) {
 		h := f32(r.swapchain_extent.height)
 
 		pc := Push_Constants {
-			mvp      = linalg.matrix_ortho3d_f32(0, w, 0, h, -1, 1),
-			viewport = {w, h},
+			mvp          = linalg.matrix_ortho3d_f32(0, w, 0, h, -1, 1),
+			viewport     = {w, h},
+			weight_boost = r.ctx.weight_boost ? 1.0 : 0.0,
 		}
-		vk.CmdPushConstants(cmd, r.pipeline_layout, {.VERTEX}, 0, size_of(Push_Constants), &pc)
+		vk.CmdPushConstants(cmd, r.pipeline_layout, {.VERTEX, .FRAGMENT}, 0, size_of(Push_Constants), &pc)
 
 		vb_offset := vk.DeviceSize(0)
 		vk.CmdBindVertexBuffers(cmd, 0, 1, &r.vertex_buffer, &vb_offset)
@@ -1345,7 +1348,7 @@ create_slug_pipeline :: proc(r: ^Renderer) -> bool {
 	}
 
 	push_constant_range := vk.PushConstantRange {
-		stageFlags = {.VERTEX},
+		stageFlags = {.VERTEX, .FRAGMENT},
 		offset     = 0,
 		size       = size_of(Push_Constants),
 	}

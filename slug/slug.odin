@@ -227,17 +227,22 @@ Glyph_Data :: struct {
 
 // Font loaded from a TTF file.
 Font :: struct {
-	info:      stbtt.fontinfo,
-	font_data: []u8, // Raw TTF bytes (must stay alive while font is in use)
+	info:       stbtt.fontinfo,
+	font_data:  []u8, // Raw TTF bytes (must stay alive while font is in use)
 
 	// Vertical metrics (em-space)
-	ascent:    f32,
-	descent:   f32,
-	line_gap:  f32,
-	em_scale:  f32, // 1.0 / units_per_em
+	ascent:     f32,
+	descent:    f32,
+	line_gap:   f32,
+	em_scale:   f32, // 1.0 / units_per_em
+
+	// Cap height in em-space (from OS/2 table sCapHeight, or 'H' bbox fallback).
+	// Used by font_snap_size() to align cap-height to the pixel grid.
+	// Zero means not available (no OS/2 v2+ table and no 'H' glyph).
+	cap_height: f32,
 
 	// Glyph cache keyed by codepoint (supports any Unicode codepoint)
-	glyphs:    map[rune]Glyph_Data,
+	glyphs:     map[rune]Glyph_Data,
 }
 
 // --- Core Context ---
@@ -274,6 +279,13 @@ Context :: struct {
 	// Use set_camera() to pan; reset with set_camera(ctx, 0, 0).
 	camera_x:        f32,
 	camera_y:        f32,
+
+	// Coverage weight boost — applies sqrt(coverage) in the fragment shader.
+	// This is Eric Lengyel's SLUG_WEIGHT optical correction: it makes antialiased
+	// edges slightly bolder/heavier, counteracting the "too thin" appearance that
+	// linear-space or sRGB blending can produce. Perceptually sharper body text.
+	// Default: false (disabled). Set to true for bolder text edges.
+	weight_boost:    bool,
 
 	// Per-frame vertex buffer (CPU side — backends upload to GPU)
 	vertices:        [MAX_GLYPH_VERTICES]Vertex,

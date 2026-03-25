@@ -35,11 +35,12 @@ Renderer :: struct {
 	ctx:           slug.Context,
 
 	// Shader program and uniform locations
-	program:       u32,
-	mvp_loc:       i32,
-	viewport_loc:  i32,
-	curve_tex_loc: i32,
-	band_tex_loc:  i32,
+	program:         u32,
+	mvp_loc:         i32,
+	viewport_loc:    i32,
+	curve_tex_loc:   i32,
+	band_tex_loc:    i32,
+	weight_boost_loc: i32,
 
 	// Slug text GL objects
 	vao:           u32,
@@ -140,6 +141,7 @@ out vec4 fragColor;
 
 uniform sampler2D curveTexture;
 uniform usampler2D bandTexture;
+uniform float weightBoost;
 
 uint CalcRootCode(float y1, float y2, float y3)
 {
@@ -285,6 +287,7 @@ void main()
     }
 
     float coverage = CalcCoverage(xcov, ycov, xwgt, ywgt);
+    if (weightBoost > 0.5) coverage = sqrt(coverage);
     fragColor = vColor * coverage;
 }
 `
@@ -339,6 +342,7 @@ init :: proc(r: ^Renderer) -> bool {
 	r.viewport_loc = gl.GetUniformLocation(program, "viewport")
 	r.curve_tex_loc = gl.GetUniformLocation(program, "curveTexture")
 	r.band_tex_loc = gl.GetUniformLocation(program, "bandTexture")
+	r.weight_boost_loc = gl.GetUniformLocation(program, "weightBoost")
 
 	// Create VAO
 	gl.GenVertexArrays(1, &r.vao)
@@ -496,6 +500,13 @@ flush :: proc(r: ^Renderer, width, height: i32, scissor: slug.Scissor_Rect = {})
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 	gl.Disable(gl.DEPTH_TEST)
 
+	// Enable sRGB framebuffer blending — the hardware linearizes the existing
+	// framebuffer contents before blending, blends in linear space, then re-encodes
+	// to sRGB. This produces correct coverage transitions regardless of foreground/
+	// background color and eliminates the "light on dark = too thin, dark on light =
+	// too bold" asymmetry of gamma-space blending. Zero performance cost.
+	gl.Enable(gl.FRAMEBUFFER_SRGB)
+
 	// Apply scissor rect if one was provided.
 	// OpenGL glScissor uses a bottom-left origin (Y-up), so we must flip Y
 	// from our top-left Y-down screen coordinates.
@@ -535,6 +546,7 @@ flush :: proc(r: ^Renderer, width, height: i32, scissor: slug.Scissor_Rect = {})
 	// Set uniforms
 	gl.UniformMatrix4fv(r.mvp_loc, 1, false, &proj[0][0])
 	gl.Uniform2f(r.viewport_loc, w, h)
+	gl.Uniform1f(r.weight_boost_loc, r.ctx.weight_boost ? 1.0 : 0.0)
 
 	// Upload vertex data
 	gl.BindVertexArray(r.vao)
@@ -588,6 +600,7 @@ flush :: proc(r: ^Renderer, width, height: i32, scissor: slug.Scissor_Rect = {})
 	gl.BindVertexArray(0)
 	gl.UseProgram(0)
 	gl.Disable(gl.SCISSOR_TEST)
+	gl.Disable(gl.FRAMEBUFFER_SRGB)
 }
 
 // ===================================================

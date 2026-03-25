@@ -35,6 +35,9 @@ font_load :: proc(path: string) -> (font: Font, ok: bool) {
 	font.descent = f32(descent_raw) * font.em_scale
 	font.line_gap = f32(line_gap_raw) * font.em_scale
 
+	// Read sCapHeight from the OS/2 table for pixel-grid alignment.
+	font.cap_height = read_cap_height(data, font.em_scale)
+
 	return font, true
 }
 
@@ -227,4 +230,109 @@ cubic_to_quadratics :: proc(
 
 	cubic_to_quadratics(p0, mid01, mid012, cubic_mid, output, tolerance, depth + 1)
 	cubic_to_quadratics(cubic_mid, mid123, mid23, p3, output, tolerance, depth + 1)
+}
+
+// ===================================================
+// sCapHeight reading and pixel-grid alignment
+// ===================================================
+
+import "core:math"
+
+// Snap a desired font size (in pixels) to the nearest value where
+// cap-height lands exactly on a pixel boundary. This eliminates the
+// soft gray edge at the top of capital letters (H, E, T, I, etc.).
+//
+// Returns the original size unchanged if the font has no cap_height data.
+// For animated/zooming text, skip snapping — it would cause visible size jumps.
+//
+// dpi: scale factor for HiDPI displays (1.0 = standard, 2.0 = Retina).
+// The snap is computed in device pixels, then divided back by dpi.
+font_snap_size :: proc(font: ^Font, target_size: f32, dpi: f32 = 1.0) -> f32 {
+	if font.cap_height <= 0 do return target_size
+	effective_dpi := dpi if dpi > 0 else 1.0
+
+	// Cap height in device pixels at the target size
+	cap_pixels := target_size * effective_dpi * font.cap_height
+
+	// Snap to nearest integer
+	snapped_cap := math.round(cap_pixels)
+	if snapped_cap < 1 do snapped_cap = 1
+
+	return snapped_cap / (font.cap_height * effective_dpi)
+}
+
+// Read sCapHeight from the font's OS/2 table.
+// Falls back to measuring the 'H' glyph bbox if OS/2 version < 2.
+// Returns 0 if neither source is available.
+@(private = "file")
+read_cap_height :: proc(font_data: []u8, em_scale: f32) -> f32 {
+	// The TTF file starts with an offset table:
+	//   uint32 sfVersion
+	//   uint16 numTables
+	//   uint16 searchRange, entrySelector, rangeShift
+	// Then numTables table directory entries of 16 bytes each:
+	//   uint32 tag, uint32 checksum, uint32 offset, uint32 length
+
+	if len(font_data) < 12 do return 0
+
+	num_tables := read_u16_be(font_data, 4)
+
+	// Scan table directory for 'OS/2' tag (0x4F532F32)
+	for i in 0 ..< int(num_tables) {
+		entry_offset := 12 + i * 16
+		if entry_offset + 16 > len(font_data) do break
+
+		tag := read_u32_be(font_data, entry_offset)
+		if tag != 0x4F532F32 do continue // Not 'OS/2'
+
+		table_offset := int(read_u32_be(font_data, entry_offset + 8))
+		table_length := int(read_u32_be(font_data, entry_offset + 12))
+
+		// sCapHeight is at byte offset 88, requires OS/2 version >= 2
+		if table_length < 90 do return 0
+		if table_offset + 90 > len(font_data) do return 0
+
+		version := read_u16_be(font_data, table_offset)
+		if version < 2 do return 0 // sCapHeight not present in v0/v1
+
+		raw := read_i16_be(font_data, table_offset + 88)
+		if raw <= 0 do return 0
+
+		return f32(raw) * em_scale
+	}
+
+	// No OS/2 table — try measuring the 'H' glyph as fallback
+	return cap_height_from_h_glyph(font_data, em_scale)
+}
+
+// Measure the 'H' glyph's top edge as a cap-height fallback.
+@(private = "file")
+cap_height_from_h_glyph :: proc(font_data: []u8, em_scale: f32) -> f32 {
+	info: stbtt.fontinfo
+	if !stbtt.InitFont(&info, raw_data(font_data), 0) do return 0
+
+	glyph := stbtt.FindGlyphIndex(&info, 'H')
+	if glyph == 0 do return 0
+
+	x0, y0, x1, y1: c.int
+	if stbtt.GetGlyphBox(&info, c.int(glyph), &x0, &y0, &x1, &y1) == 0 do return 0
+
+	return f32(y1) * em_scale
+}
+
+// Big-endian byte readers for raw TTF data.
+@(private = "file")
+read_u16_be :: proc(data: []u8, offset: int) -> u16 {
+	return u16(data[offset]) << 8 | u16(data[offset + 1])
+}
+
+@(private = "file")
+read_u32_be :: proc(data: []u8, offset: int) -> u32 {
+	return u32(data[offset]) << 24 | u32(data[offset + 1]) << 16 |
+	       u32(data[offset + 2]) << 8 | u32(data[offset + 3])
+}
+
+@(private = "file")
+read_i16_be :: proc(data: []u8, offset: int) -> i16 {
+	return transmute(i16)read_u16_be(data, offset)
 }

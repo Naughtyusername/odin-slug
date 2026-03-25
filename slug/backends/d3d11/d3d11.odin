@@ -82,9 +82,10 @@ Renderer :: struct {
 // --- Constant buffer layouts (16-byte aligned) ---
 
 Slug_Constants :: struct #packed {
-	mvp:      matrix[4, 4]f32, // 64 bytes
-	viewport: [2]f32,          // 8 bytes
-	_pad:     [2]f32,          // 8 bytes padding → 80 total
+	mvp:          matrix[4, 4]f32, // 64 bytes
+	viewport:     [2]f32,          // 8 bytes
+	weight_boost: f32,             // 4 bytes
+	_pad:         f32,             // 4 bytes padding → 80 total
 }
 
 Rect_Constants :: struct #packed {
@@ -104,7 +105,8 @@ SLUG_VS_SOURCE :: `
 cbuffer Constants : register(b0) {
     column_major float4x4 mvp;
     float2 viewport;
-    float2 _pad;
+    float weightBoost;
+    float _pad;
 };
 
 struct VS_INPUT {
@@ -176,6 +178,13 @@ VS_OUTPUT vs_main(VS_INPUT input)
 
 SLUG_PS_SOURCE :: `
 #define kLogBandTextureWidth 12
+
+cbuffer Constants : register(b0) {
+    column_major float4x4 mvp;
+    float2 viewport;
+    float weightBoost;
+    float _pad;
+};
 
 Texture2D<float4> curveTexture : register(t0);
 Texture2D<uint2>  bandTexture  : register(t1);
@@ -332,6 +341,7 @@ float4 ps_main(PS_INPUT input) : SV_Target
     }
 
     float coverage = CalcCoverage(xcov, ycov, xwgt, ywgt);
+    if (weightBoost > 0.5) coverage = sqrt(coverage);
     return input.color * coverage;
 }
 `
@@ -788,6 +798,7 @@ flush :: proc(
 			consts := cast(^Slug_Constants)mapped.pData
 			consts.mvp = proj
 			consts.viewport = {w, h}
+			consts.weight_boost = r.ctx.weight_boost ? 1.0 : 0.0
 			dc->Unmap(r.slug_cb, 0)
 		}
 
@@ -802,6 +813,7 @@ flush :: proc(
 		dc->PSSetShader(r.slug_ps, nil, 0)
 		cbs := [1]^d3d11.IBuffer{r.slug_cb}
 		dc->VSSetConstantBuffers(0, 1, &cbs[0])
+		dc->PSSetConstantBuffers(0, 1, &cbs[0])
 
 		if r.ctx.shared_atlas && r.shared_d3d.loaded {
 			// Shared atlas: one texture bind, one draw call

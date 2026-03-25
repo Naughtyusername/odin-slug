@@ -117,12 +117,13 @@ init :: proc(r: ^Renderer, window: ^sdl.Window, device: ^sdl.GPUDevice) -> bool 
 	if slug_vert == nil do return false
 
 	slug_frag := sdl.CreateGPUShader(device, sdl.GPUShaderCreateInfo{
-		code_size    = len(FRAG_SHADER_CODE),
-		code         = raw_data(FRAG_SHADER_CODE),
-		entrypoint   = "main",
-		format       = {.SPIRV},
-		stage        = .FRAGMENT,
-		num_samplers = 2,
+		code_size           = len(FRAG_SHADER_CODE),
+		code                = raw_data(FRAG_SHADER_CODE),
+		entrypoint          = "main",
+		format              = {.SPIRV},
+		stage               = .FRAGMENT,
+		num_samplers        = 2,
+		num_uniform_buffers = 1,
 	})
 	if slug_frag == nil {
 		sdl.ReleaseGPUShader(device, slug_vert)
@@ -619,6 +620,10 @@ flush :: proc(r: ^Renderer, scissor: slug.Scissor_Rect = {}) {
 			viewport = {w, h},
 		}
 		sdl.PushGPUVertexUniformData(r.cmd, 0, &pc, size_of(Push_Constants))
+
+		// Fragment uniform: weight boost flag (std140 pads to 16 bytes)
+		frag_params: [4]f32 = {r.ctx.weight_boost ? 1.0 : 0.0, 0, 0, 0}
+		sdl.PushGPUFragmentUniformData(r.cmd, 0, &frag_params, size_of(frag_params))
 
 		vb_binding := sdl.GPUBufferBinding{buffer = r.vertex_buffer}
 		sdl.BindGPUVertexBuffers(render_pass, 0, &vb_binding, 1)

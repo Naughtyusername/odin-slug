@@ -318,6 +318,8 @@ main :: proc() {
 		slug_sdl3.upload_shared_textures(renderer, &pack)
 	}
 
+	ctx.weight_boost = true
+
 	// -----------------------------------------------
 	// 4. Cache static text
 	// -----------------------------------------------

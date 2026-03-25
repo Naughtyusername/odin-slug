@@ -436,6 +436,8 @@ main :: proc() {
 		slug_d3d.upload_shared_textures(renderer, &pack)
 	}
 
+	ctx.weight_boost = true
+
 	// -----------------------------------------------
 	// 5. Cache static text
 	// -----------------------------------------------

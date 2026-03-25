@@ -374,6 +374,8 @@ init_cb :: proc "c" () {
 		slug_sokol.upload_shared_textures(state.renderer, &pack)
 	}
 
+	ctx.weight_boost = true
+
 	// Cache static text
 	slug.begin(ctx)
 	state.cached_label = slug.cache_text(

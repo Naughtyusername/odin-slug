@@ -23,6 +23,7 @@ out vec4 fragColor;
 // Bindings are set from CPU side via glUniform1i(loc, textureUnit).
 uniform sampler2D curveTexture;    // float16x4 control points
 uniform usampler2D bandTexture;    // uint16x2 band data
+uniform float weightBoost;         // >0.5 = sqrt(coverage) optical weight boost
 
 
 uint CalcRootCode(float y1, float y2, float y3)
@@ -200,5 +201,6 @@ void main()
     }
 
     float coverage = CalcCoverage(xcov, ycov, xwgt, ywgt);
+    if (weightBoost > 0.5) coverage = sqrt(coverage);
     fragColor = outColor * coverage;
 }

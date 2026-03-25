@@ -326,6 +326,8 @@ main :: proc() {
 		slug_rl.upload_shared_textures(renderer, &pack)
 	}
 
+	ctx.weight_boost = true
+
 	// -----------------------------------------------
 	// 4. Cache static text (created once, drawn every frame)
 	// -----------------------------------------------

@@ -60,6 +60,15 @@ Vs_Params :: struct {
 	_pad:     [2]f32,
 }
 
+// Uniform block for the Slug text fragment shader.
+// Matches GLSL 430: uniform vec4 fs_params[1]
+//   [0].x = weight boost flag (>0.5 = enabled)
+// Total: 16 bytes = 1 x 16 (std140-aligned)
+Fs_Params :: struct {
+	weight_boost: f32,
+	_pad:         [3]f32,
+}
+
 // Uniform block for the rect vertex shader.
 // Matches GLSL 430: uniform vec4 rect_vs_params[4]
 // Total: 64 bytes = 4 x 16
@@ -178,6 +187,7 @@ out vec4 fragColor;
 
 uniform sampler2D curveTexture;
 uniform usampler2D bandTexture;
+uniform vec4 fs_params[1];
 
 uint CalcRootCode(float y1, float y2, float y3)
 {
@@ -323,6 +333,7 @@ void main()
     }
 
     float coverage = CalcCoverage(xcov, ycov, xwgt, ywgt);
+    if (fs_params[0].x > 0.5) coverage = sqrt(coverage);
     fragColor = vColor * coverage;
 }
 `
@@ -376,6 +387,14 @@ init :: proc(r: ^Renderer) -> bool {
 				layout = .STD140,
 				glsl_uniforms = {
 					0 = {type = .FLOAT4, array_count = 5, glsl_name = "vs_params"},
+				},
+			},
+			1 = {
+				stage = .FRAGMENT,
+				size = size_of(Fs_Params),
+				layout = .STD140,
+				glsl_uniforms = {
+					0 = {type = .FLOAT4, array_count = 1, glsl_name = "fs_params"},
 				},
 			},
 		},
@@ -657,6 +676,7 @@ flush :: proc(r: ^Renderer, width, height: i32, scissor: slug.Scissor_Rect = {})
 		sg.apply_pipeline(r.slug_pip)
 
 		vs_params := Vs_Params{mvp = proj, viewport = {w, h}}
+		fs_params := Fs_Params{weight_boost = r.ctx.weight_boost ? 1.0 : 0.0}
 
 		if r.ctx.shared_atlas && r.shared_sg.loaded {
 			// Shared atlas: one texture bind, one draw call for all quads
@@ -668,6 +688,7 @@ flush :: proc(r: ^Renderer, width, height: i32, scissor: slug.Scissor_Rect = {})
 				samplers = {0 = r.shared_sg.curve_smp, 1 = r.shared_sg.band_smp},
 			})
 			sg.apply_uniforms(0, {ptr = &vs_params, size = size_of(Vs_Params)})
+			sg.apply_uniforms(1, {ptr = &fs_params, size = size_of(Fs_Params)})
 			sg.draw(0, i32(r.ctx.quad_count * slug.INDICES_PER_QUAD), 1)
 		} else {
 			// Per-font batched draw calls
@@ -686,6 +707,7 @@ flush :: proc(r: ^Renderer, width, height: i32, scissor: slug.Scissor_Rect = {})
 					samplers = {0 = fg.curve_smp, 1 = fg.band_smp},
 				})
 				sg.apply_uniforms(0, {ptr = &vs_params, size = size_of(Vs_Params)})
+				sg.apply_uniforms(1, {ptr = &fs_params, size = size_of(Fs_Params)})
 
 				first_index := i32(r.ctx.font_quad_start[fi] * slug.INDICES_PER_QUAD)
 				index_count := i32(qcount * slug.INDICES_PER_QUAD)
