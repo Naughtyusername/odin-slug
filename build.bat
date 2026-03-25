@@ -64,15 +64,23 @@ odin check slug\backends\raylib\ -no-entry-point
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 echo Raylib backend: OK
 
-echo === Checking Vulkan backend ===
-odin check slug\backends\vulkan\ -no-entry-point
-if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
-echo Vulkan backend: OK
+if exist "slug\shaders\slug_vert.spv" (
+    echo === Checking Vulkan backend ===
+    odin check slug\backends\vulkan\ -no-entry-point
+    if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+    echo Vulkan backend: OK
+) else (
+    echo === Skipping Vulkan backend ^(run 'build.bat shaders' first^) ===
+)
 
-echo === Checking SDL3 GPU backend ===
-odin check slug\backends\sdl3gpu\ -no-entry-point
-if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
-echo SDL3 GPU backend: OK
+if exist "slug\shaders\slug_sdl3_vert.spv" (
+    echo === Checking SDL3 GPU backend ===
+    odin check slug\backends\sdl3gpu\ -no-entry-point
+    if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+    echo SDL3 GPU backend: OK
+) else (
+    echo === Skipping SDL3 GPU backend ^(run 'build.bat shaders' first^) ===
+)
 
 echo === Checking D3D11 backend ===
 odin check slug\backends\d3d11\ -no-entry-point
@@ -143,7 +151,7 @@ echo Note: if you see NULL GL function pointers at runtime, rebuild with -define
 goto :eof
 
 :do_vulkan
-call build.bat shaders
+call "%~f0" shaders
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 echo === Building Vulkan demo ===
 odin build examples\demo_vulkan\ -out:demo_vulkan.exe -collection:libs=.
@@ -152,7 +160,7 @@ echo Built: demo_vulkan.exe
 goto :eof
 
 :do_sdl3gpu
-call build.bat shaders
+call "%~f0" shaders
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 echo === Building SDL3 GPU demo ===
 odin build examples\demo_sdl3gpu\ -out:demo_sdl3gpu.exe -collection:libs=.
@@ -206,15 +214,15 @@ goto :eof
 
 :: --------------------------------------------------------------------------
 :do_all
-call build.bat opengl
+call "%~f0" opengl
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
-call build.bat raylib
+call "%~f0" raylib
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
-call build.bat vulkan
+call "%~f0" vulkan
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
-call build.bat sdl3gpu
+call "%~f0" sdl3gpu
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
-call build.bat d3d11
+call "%~f0" d3d11
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 goto :eof
 
