@@ -62,6 +62,55 @@ odin build examples/demo_sokol/ -collection:libs=. -collection:sokol=$SOKOL_PATH
 
 Always run all checks + build all demos before committing. Sokol check requires SOKOL_PATH.
 
+## Cross-Cutting Change Rule — Keep Everything in Sync
+
+This project has 7 backends, 7 demos, multiple shader variants, and 2 build scripts.
+**Any change to one must be checked against all others for parity.**
+
+### Build Scripts
+| Script | Platform | File |
+|--------|----------|------|
+| Linux/macOS | `build.sh` | Bash, all 7 targets + check + shaders + clean |
+| Windows | `build.bat` | CMD, all 7 targets + check + shaders + clean |
+
+When adding a new demo, build target, or backend:
+- Add the target to **both** `build.sh` and `build.bat`
+- Add it to `check`, `all` (if no external deps), and `clean` in both scripts
+- Keep help text in sync
+
+### Backends (all must implement the same rendering features)
+| Backend | File | Shader source |
+|---------|------|---------------|
+| OpenGL 3.3 | `slug/backends/opengl/opengl.odin` | Inline GLSL 3.30 (also in `slug/shaders/slug_330.*`) |
+| Raylib | `slug/backends/raylib/raylib.odin` | Inherits OpenGL (uses `using gl_renderer`) |
+| Karl2D | `slug/backends/karl2d/karl2d.odin` | Inherits OpenGL (uses `using gl_renderer`) |
+| Vulkan 1.x | `slug/backends/vulkan/renderer.odin` | `slug/shaders/slug_450.*` → SPIR-V |
+| SDL3 GPU | `slug/backends/sdl3gpu/sdl3gpu.odin` | `slug/shaders/slug_sdl3.*` → SPIR-V |
+| D3D11 | `slug/backends/d3d11/d3d11.odin` | Inline HLSL SM 5.0 (embedded strings) |
+| Sokol GFX | `slug/backends/sokol/sokol.odin` | Inline GLSL 430 (embedded strings) |
+
+When changing any backend (new uniform, pipeline state, shader logic):
+- **Shader changes** must propagate to: inline GLSL 3.30 (OpenGL), `slug_450.*` (Vulkan), `slug_sdl3.*` (SDL3), inline HLSL (D3D11), inline GLSL 430 (Sokol)
+- Raylib and Karl2D inherit OpenGL automatically — no separate shader work needed
+- **Uniform/constant buffer changes** must propagate to all 5 unique backends (GL, Vulkan, SDL3, D3D11, Sokol)
+- **Pipeline state changes** (blend mode, sRGB, etc.) must be implemented in all backends or documented as backend-specific
+
+### Demos (all must showcase identical features)
+| Demo | File |
+|------|------|
+| demo_opengl | `examples/demo_opengl/main.odin` |
+| demo_raylib | `examples/demo_raylib/main.odin` |
+| demo_vulkan | `examples/demo_vulkan/main.odin` |
+| demo_sdl3gpu | `examples/demo_sdl3gpu/main.odin` |
+| demo_d3d11 | `examples/demo_d3d11/main.odin` |
+| demo_karl2d | `examples/demo_karl2d/main.odin` |
+| demo_sokol | `examples/demo_sokol/main.odin` |
+
+When adding a feature or changing demo code:
+- Apply the change to **all 7 demos**
+- Context flags (e.g. `ctx.weight_boost = true`) must be set in all demos
+- Position constants and layout should match across demos (same named constants, same values)
+
 ## Key Files — What to Edit for What
 
 | Task | File |

@@ -18,6 +18,7 @@ if "%1"=="opengl"  goto do_opengl
 if "%1"=="raylib"  goto do_raylib
 if "%1"=="vulkan"  goto do_vulkan
 if "%1"=="sdl3gpu" goto do_sdl3gpu
+if "%1"=="d3d11"   goto do_d3d11
 if "%1"=="karl2d"  goto do_karl2d
 if "%1"=="sokol"   goto do_sokol
 if "%1"=="shaders" goto do_shaders
@@ -36,10 +37,11 @@ echo   raylib      Build the Raylib integration demo
 echo               Note: if GL loader fails on Windows, add -define:RAYLIB_SHARED=true
 echo   vulkan      Compile shaders + build the Vulkan demo
 echo   sdl3gpu     Compile shaders + build the SDL3 GPU demo
+echo   d3d11       Build the D3D11 demo (Windows only, no external deps)
 echo   karl2d      Build the Karl2D demo (requires KARL2D_PATH or sibling ..\karl2d\)
 echo   sokol       Build the Sokol GFX demo (requires SOKOL_PATH or sibling ..\sokol-odin\sokol\)
 echo   shaders     Compile GLSL 4.50 + SDL3 shaders to SPIR-V (requires glslc)
-echo   all         Build opengl + raylib + vulkan + sdl3gpu
+echo   all         Build opengl + raylib + vulkan + sdl3gpu + d3d11
 echo   clean       Remove build artifacts
 echo.
 echo If no command is given, 'check' is run.
@@ -71,6 +73,11 @@ echo === Checking SDL3 GPU backend ===
 odin check slug\backends\sdl3gpu\ -no-entry-point
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 echo SDL3 GPU backend: OK
+
+echo === Checking D3D11 backend ===
+odin check slug\backends\d3d11\ -no-entry-point
+if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+echo D3D11 backend: OK
 
 echo === Checking Karl2D backend ===
 odin check slug\backends\karl2d\ -no-entry-point
@@ -153,6 +160,13 @@ if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 echo Built: demo_sdl3gpu.exe
 goto :eof
 
+:do_d3d11
+echo === Building D3D11 demo ===
+odin build examples\demo_d3d11\ -out:demo_d3d11.exe -collection:libs=.
+if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+echo Built: demo_d3d11.exe
+goto :eof
+
 :do_karl2d
 echo === Building Karl2D demo ===
 set KARL2D_BUILD_PATH=%KARL2D_PATH%
@@ -200,11 +214,13 @@ call build.bat vulkan
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 call build.bat sdl3gpu
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+call build.bat d3d11
+if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 goto :eof
 
 :do_clean
 echo === Cleaning build artifacts ===
-del /f /q demo_opengl.exe demo_raylib.exe demo_vulkan.exe demo_sdl3gpu.exe demo_karl2d.exe demo_sokol.exe 2>nul
+del /f /q demo_opengl.exe demo_raylib.exe demo_vulkan.exe demo_sdl3gpu.exe demo_d3d11.exe demo_karl2d.exe demo_sokol.exe 2>nul
 del /f /q slug\shaders\*.spv 2>nul
 echo Clean.
 goto :eof
