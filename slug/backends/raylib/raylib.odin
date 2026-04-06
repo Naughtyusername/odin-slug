@@ -24,6 +24,11 @@ package slug_raylib
 //        slug.draw_text(slug_raylib.ctx(renderer), ...)
 //        slug.end(slug_raylib.ctx(renderer))
 //        slug_raylib.flush(renderer, rl.GetScreenWidth(), rl.GetScreenHeight())
+//
+// Hot reload (shared .so workflow):
+//   In game_hot_reloaded: slug_raylib.hot_reload(renderer)
+//   This re-populates vendor:OpenGL function pointers without
+//   re-creating GPU resources (VAO, VBO, shaders, textures survive).
 // ===================================================
 
 import gl "vendor:OpenGL"
@@ -108,6 +113,19 @@ unload_font :: proc(r: ^Renderer, slot: int) {
 // Destroy all GL resources and free the slug context.
 destroy :: proc(r: ^Renderer) {
 	slug_gl.destroy(&r.gl_renderer)
+}
+
+// Re-populate vendor:OpenGL function pointers after a hot reload.
+// GPU resources (VAO, VBO, shaders, textures) survive the reload — only
+// the Odin-side GL function pointer table resets to nil in the new .so.
+// Call this in your game_hot_reloaded callback instead of init().
+// Returns false if the GL context is no longer available.
+hot_reload :: proc(r: ^Renderer) -> bool {
+	gl.load_up_to(3, 3, gl_set_proc_address)
+	if gl.CreateShader == nil {
+		return false
+	}
+	return true
 }
 
 // --- GL proc loader ---
