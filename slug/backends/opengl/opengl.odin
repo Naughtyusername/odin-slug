@@ -507,8 +507,10 @@ flush :: proc(r: ^Renderer, width, height: i32, scissor: slug.Scissor_Rect = {})
 	proj := linalg.matrix_ortho3d_f32(0, w, h, 0, -1, 1)
 
 	// Set all GL state explicitly — don't assume the host left defaults.
-	// Bind default framebuffer in case the host left an FBO bound.
-	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+	// NOTE: We intentionally do NOT bind framebuffer 0 here.
+	// Drawing to whatever FBO is currently bound allows callers to use slug
+	// inside render texture / FBO workflows (e.g. Raylib BeginTextureMode).
+	// If you want to draw to the window, ensure no FBO is bound before flush.
 	// Sync viewport to our projection matrix dimensions.
 	gl.Viewport(0, 0, width, height)
 	// Prevent backface culling from discarding our screen-aligned quads.
