@@ -4,6 +4,7 @@
 // ===================================================
 
 #version 450
+#extension GL_EXT_samplerless_texture_functions : require
 
 #define kLogBandTextureWidth 12
 
@@ -16,14 +17,21 @@ layout(location = 3) flat in ivec4 inGlyph;
 // --- Output ---
 layout(location = 0) out vec4 fragColor;
 
-// --- Fragment uniform buffer (SDL3 GPU: fragment uniforms = set 3) ---
+// --- Textures ---
+// SDL3 GPU places ALL fragment textures in set 2: samplers at bindings 0..S-1,
+// then storage textures at bindings S..S+T-1. Set 3 is exclusively for UBOs.
+// curveTexture: set 2, binding 0 — sampler slot 0 (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+// bandTexture:  set 2, binding 1 — storage texture slot 0 (VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
+//   utexture2D generates SAMPLED_IMAGE (correct). usampler2D would generate
+//   COMBINED_IMAGE_SAMPLER (wrong); uimage2D would generate STORAGE_IMAGE (also wrong).
+//   GL_EXT_samplerless_texture_functions lets texelFetch work without a sampler handle.
+layout(set = 2, binding = 0) uniform sampler2D  curveTexture;
+layout(set = 2, binding = 1) uniform utexture2D bandTexture;
+
+// --- Fragment uniform buffer (set 3 is exclusively for UBOs in SDL3 GPU) ---
 layout(set = 3, binding = 0) uniform FragUBO {
     float weightBoost;
 } frag;
-
-// --- Textures (fragment sampler slots 0 and 1) ---
-layout(set = 2, binding = 0) uniform sampler2D curveTexture;
-layout(set = 2, binding = 1) uniform usampler2D bandTexture;
 
 
 uint CalcRootCode(float y1, float y2, float y3)

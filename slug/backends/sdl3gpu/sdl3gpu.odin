@@ -120,13 +120,14 @@ init :: proc(window: ^sdl.Window, device: ^sdl.GPUDevice) -> ^Renderer {
 	if slug_vert == nil { free(r); return nil }
 
 	slug_frag := sdl.CreateGPUShader(device, sdl.GPUShaderCreateInfo{
-		code_size           = len(FRAG_SHADER_CODE),
-		code                = raw_data(FRAG_SHADER_CODE),
-		entrypoint          = "main",
-		format              = {.SPIRV},
-		stage               = .FRAGMENT,
-		num_samplers        = 2,
-		num_uniform_buffers = 1,
+		code_size            = len(FRAG_SHADER_CODE),
+		code                 = raw_data(FRAG_SHADER_CODE),
+		entrypoint           = "main",
+		format               = {.SPIRV},
+		stage                = .FRAGMENT,
+		num_samplers         = 1,
+		num_storage_textures = 1,
+		num_uniform_buffers  = 1,
 	})
 	if slug_frag == nil {
 		sdl.ReleaseGPUShader(device, slug_vert)
@@ -411,6 +412,7 @@ upload_font_textures :: proc(r: ^Renderer, slot: int, pack: ^slug.Texture_Pack_R
 		pack.curve_width,
 		pack.curve_height,
 		.R16G16B16A16_FLOAT,
+		{.SAMPLER},
 		raw_data(pack.curve_data),
 		len(pack.curve_data) * size_of([4]u16),
 	)
@@ -422,6 +424,7 @@ upload_font_textures :: proc(r: ^Renderer, slot: int, pack: ^slug.Texture_Pack_R
 		pack.band_width,
 		pack.band_height,
 		.R16G16_UINT,
+		{.GRAPHICS_STORAGE_READ},
 		raw_data(pack.band_data),
 		len(pack.band_data) * size_of([2]u16),
 	)
@@ -446,6 +449,7 @@ upload_shared_textures :: proc(r: ^Renderer, pack: ^slug.Texture_Pack_Result) ->
 		pack.curve_width,
 		pack.curve_height,
 		.R16G16B16A16_FLOAT,
+		{.SAMPLER},
 		raw_data(pack.curve_data),
 		len(pack.curve_data) * size_of([4]u16),
 	)
@@ -457,6 +461,7 @@ upload_shared_textures :: proc(r: ^Renderer, pack: ^slug.Texture_Pack_Result) ->
 		pack.band_width,
 		pack.band_height,
 		.R16G16_UINT,
+		{.GRAPHICS_STORAGE_READ},
 		raw_data(pack.band_data),
 		len(pack.band_data) * size_of([2]u16),
 	)
@@ -643,11 +648,9 @@ flush :: proc(r: ^Renderer, scissor: slug.Scissor_Rect = {}) {
 		sdl.BindGPUIndexBuffer(render_pass, sdl.GPUBufferBinding{buffer = r.index_buffer}, ._32BIT)
 
 		if r.ctx.shared_atlas && r.shared_gpu.loaded {
-			bindings := [2]sdl.GPUTextureSamplerBinding{
-				{texture = r.shared_gpu.curve_texture, sampler = r.sampler},
-				{texture = r.shared_gpu.band_texture,  sampler = r.sampler},
-			}
-			sdl.BindGPUFragmentSamplers(render_pass, 0, raw_data(bindings[:]), 2)
+			curve_binding := sdl.GPUTextureSamplerBinding{texture = r.shared_gpu.curve_texture, sampler = r.sampler}
+			sdl.BindGPUFragmentSamplers(render_pass, 0, &curve_binding, 1)
+			sdl.BindGPUFragmentStorageTextures(render_pass, 0, &r.shared_gpu.band_texture, 1)
 			sdl.DrawGPUIndexedPrimitives(
 				render_pass,
 				r.ctx.quad_count * slug.INDICES_PER_QUAD,
@@ -660,11 +663,9 @@ flush :: proc(r: ^Renderer, scissor: slug.Scissor_Rect = {}) {
 				fg := &r.font_gpu[fi]
 				if !fg.loaded do continue
 
-				bindings := [2]sdl.GPUTextureSamplerBinding{
-					{texture = fg.curve_texture, sampler = r.sampler},
-					{texture = fg.band_texture,  sampler = r.sampler},
-				}
-				sdl.BindGPUFragmentSamplers(render_pass, 0, raw_data(bindings[:]), 2)
+				curve_binding := sdl.GPUTextureSamplerBinding{texture = fg.curve_texture, sampler = r.sampler}
+				sdl.BindGPUFragmentSamplers(render_pass, 0, &curve_binding, 1)
+				sdl.BindGPUFragmentStorageTextures(render_pass, 0, &fg.band_texture, 1)
 
 				first_index := r.ctx.font_quad_start[fi] * slug.INDICES_PER_QUAD
 				index_count := qcount * slug.INDICES_PER_QUAD
@@ -795,18 +796,21 @@ upload_static_indices :: proc(r: ^Renderer) -> bool {
 }
 
 // Upload texture data to the GPU via a temporary transfer buffer.
+// Pass {.SAMPLER} for float textures (curve) and {.GRAPHICS_STORAGE_READ} for
+// integer textures (band) — SDL3 GPU's validation forbids .SAMPLER on integer formats.
 @(private = "file")
 upload_texture :: proc(
 	r: ^Renderer,
 	width, height: u32,
 	format: sdl.GPUTextureFormat,
+	usage: sdl.GPUTextureUsageFlags,
 	data: rawptr,
 	data_size: int,
 ) -> ^sdl.GPUTexture {
 	tex := sdl.CreateGPUTexture(r.device, sdl.GPUTextureCreateInfo{
 		type                 = .D2,
 		format               = format,
-		usage                = {.SAMPLER},
+		usage                = usage,
 		width                = width,
 		height               = height,
 		layer_count_or_depth = 1,
